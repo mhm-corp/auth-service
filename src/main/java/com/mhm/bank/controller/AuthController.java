@@ -27,7 +27,7 @@ public class AuthController {
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<String> registerUser(@RequestBody UserInformation userInformation) {
-        return ResponseEntity.ok(authService.registerUser());
+        return ResponseEntity.ok(authService.registerUser(userInformation));
     }
 
 }
