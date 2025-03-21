@@ -32,17 +32,16 @@ class AuthControllerTest {
     void registerUser_shouldReturnBadRequest_whenInputIsInvalid() throws Exception {
         UserInformation userInformation = new UserInformation(
                 null,
-                "",   // Invalid username
-                "short", // Invalid password
+                "",
+                "short",
                 "John",
                 "Doe",
                 "123 Main St",
-                "invalid-email", // Invalid email
-                null, // No birth date
+                "invalid-email",
+                null,
                 "123456789"
         );
 
-        // Perform the registration with invalid data
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(new ObjectMapper().writeValueAsString(userInformation)))
