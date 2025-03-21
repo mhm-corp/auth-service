@@ -2,6 +2,7 @@ package com.mhm.bank.service;
 
 import com.mhm.bank.dto.UserInformation;
 import com.mhm.bank.entity.UserEntity;
+import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +16,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @Testcontainers
@@ -41,7 +43,7 @@ class AuthServiceTest {
     private UserRepository userRepository;
 
     @Test
-    void shouldRegisterUserSuccessfully() {
+    void shouldRegisterUserSuccessfully() throws UserAlreadyExistsException {
         UserInformation userInformation = new UserInformation(
                 "test-id-1",
                 "testuser",
@@ -72,4 +74,23 @@ class AuthServiceTest {
         assertEquals(userInformation.birthDate(), savedUser.getBirthDate());
     }
 
+
+    @Test
+    void shouldThrowExceptionWhenUserAlreadyExists() {
+        UserInformation userInformation = new UserInformation(
+                "test-id-1",
+                "testuser",
+                "password123",
+                "John",
+                "Doe",
+                "123 Test St",
+                "test@example.com",
+                LocalDate.of(1990, 1, 11),
+                "1234567890"
+        );
+
+        assertThrows(UserAlreadyExistsException.class, () -> {
+            authService.registerUser(userInformation);
+        });
+    }
 }

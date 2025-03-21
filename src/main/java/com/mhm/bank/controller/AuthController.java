@@ -1,6 +1,7 @@
 package com.mhm.bank.controller;
 
 import com.mhm.bank.dto.UserInformation;
+import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -27,7 +28,7 @@ public class AuthController {
             @ApiResponse(responseCode = "400", description = "Bad request"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<String> registerUser(@Valid @RequestBody UserInformation userInformation) {
+    public ResponseEntity<String> registerUser(@Valid @RequestBody UserInformation userInformation) throws UserAlreadyExistsException {
         return ResponseEntity.ok(authService.registerUser(userInformation));
     }
 
