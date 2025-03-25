@@ -12,7 +12,7 @@ import java.time.LocalDate;
 
 public record UserInformation (
     @Id
-    String id,
+    String cedula,
     @NotBlank(message = "Username cannot be empty")
     String username,
     @NotBlank(message = "Password cannot be empty")
@@ -24,7 +24,7 @@ public record UserInformation (
     String address,
     @Email(message = "Email should be valid")
     String email,
-    LocalDate birthDate,
+    LocalDate birthdate,
     @Size(max = 20, message = "The phone number is too long.")
     String phoneNumber
 

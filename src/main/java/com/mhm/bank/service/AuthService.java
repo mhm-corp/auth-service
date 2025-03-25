@@ -19,7 +19,7 @@ public class AuthService {
 
 
     public String registerUser(UserInformation userInformation) throws UserAlreadyExistsException {
-        doesItExist(userInformation.id(), userInformation.username());
+        doesItExist(userInformation.cedula(), userInformation.username());
 
         UserEntity userEntity = getUserEntity(userInformation);
         userRepository.save(userEntity);
@@ -45,14 +45,14 @@ public class AuthService {
 
     private static UserEntity getUserEntity(UserInformation userInformation) {
         UserEntity userEntity = new UserEntity();
-        userEntity.setId(userInformation.id());
+        userEntity.setId(userInformation.cedula());
         userEntity.setUsername(userInformation.username());
         userEntity.setFirstName(userInformation.firstName());
         userEntity.setLastName(userInformation.lastName());
         userEntity.setEmail(userInformation.email());
         userEntity.setAddress(userInformation.address());
         userEntity.setPhoneNumber(userInformation.phoneNumber());
-        userEntity.setBirthDate(userInformation.birthDate());
+        userEntity.setBirthDate(userInformation.birthdate());
         return userEntity;
     }
 
