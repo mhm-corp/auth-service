@@ -51,6 +51,9 @@ dependencies {
 	testImplementation "org.testcontainers:junit-jupiter:1.20.6"
 	testImplementation("org.testcontainers:postgresql:1.20.6")
 
+	def testcontainersVersion = '1.19.3'
+	testImplementation "org.testcontainers:kafka:${testcontainersVersion}"
+
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

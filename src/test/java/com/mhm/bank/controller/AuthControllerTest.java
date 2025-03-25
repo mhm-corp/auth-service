@@ -4,28 +4,45 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.mhm.bank.dto.UserInformation;
+import com.mhm.bank.dto.UserRegisteredEvent;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.serialization.StringDeserializer;
+import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.containers.KafkaContainer;
 
+import org.testcontainers.utility.DockerImageName;
+
+import java.time.Duration;
 import java.time.LocalDate;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
 
 @SpringBootTest
 @Testcontainers
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 class AuthControllerTest {
     @Autowired
     private MockMvc mockMvc;
@@ -34,6 +51,8 @@ class AuthControllerTest {
     @Autowired
     private AuthController authController;
 
+    private KafkaConsumer<String, UserRegisteredEvent> consumer;
+
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
             "postgres:15-alpine"
@@ -41,17 +60,52 @@ class AuthControllerTest {
             .withUsername("test")
             .withPassword("test");
 
+    @Container
+    static KafkaContainer kafka = new KafkaContainer(
+            DockerImageName.parse("confluentinc/cp-kafka:7.3.3")
+                    .asCompatibleSubstituteFor("confluentinc/cp-kafka")
+    );;
+
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+
+        registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
+        registry.add("spring.kafka.producer.key-serializer", () -> "org.apache.kafka.common.serialization.StringSerializer");
+        registry.add("spring.kafka.producer.value-serializer", () -> "org.springframework.kafka.support.serializer.JsonSerializer");
+
     }
 
     @BeforeEach
     void setUp() {
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+
+        // Configure the Kafka consumer for testing
+        Map<String, Object> consumerProps = new HashMap<>();
+        consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
+        consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "test-group");
+        consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
+        consumerProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
+        consumerProps.put(JsonDeserializer.TYPE_MAPPINGS, "userRegisteredEvent:com.mhm.bank.dto.UserRegisteredEvent");
+
+
+        consumer = new KafkaConsumer<>(consumerProps, new StringDeserializer(),
+                new JsonDeserializer<>(UserRegisteredEvent.class, false));
+        consumer.subscribe(Collections.singletonList("user-registered"));
+
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (consumer != null) {
+            consumer.close();
+        }
     }
 
     @Test
@@ -93,6 +147,20 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(validUser)))
                 .andExpect(status().isCreated())
                 .andExpect(content().string("User with ID 12345678 has been added"));
+
+
+        ConsumerRecords<String, UserRegisteredEvent> records = consumer.poll(Duration.ofSeconds(10));
+        assertFalse(records.isEmpty(), "No se recibieron mensajes en Kafka");
+
+        ConsumerRecord<String, UserRegisteredEvent> recordConsumer = records.iterator().next();
+        UserRegisteredEvent event = recordConsumer.value();
+
+        assertNotNull(event, "El evento de Kafka no puede ser null");
+        assertEquals(validUser.idCard(), event.userId(), "El ID del usuario no coincide");
+        assertEquals(validUser.username(), event.username(), "El username no coincide");
+        assertEquals(validUser.email(), event.email(), "El email no coincide");
+
+
     }
 
 
