@@ -12,7 +12,7 @@ import java.time.LocalDate;
 
 public record UserInformation (
     @Id
-    String cedula,
+    String idCard,
     @NotBlank(message = "Username cannot be empty")
     String username,
     @NotBlank(message = "Password cannot be empty")

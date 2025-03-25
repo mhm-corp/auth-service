@@ -45,7 +45,7 @@ class AuthServiceTest {
         );
 
         userEntity = new UserEntity();
-        userEntity.setId(userInformation.cedula());
+        userEntity.setId(userInformation.idCard());
         userEntity.setUsername(userInformation.username());
         userEntity.setFirstName(userInformation.firstName());
         userEntity.setLastName(userInformation.lastName());
@@ -57,42 +57,42 @@ class AuthServiceTest {
 
     @Test
     void shouldRegisterUserSuccessfully() throws UserAlreadyExistsException {
-        when(userRepository.existsById(userInformation.cedula())).thenReturn(false);
+        when(userRepository.existsById(userInformation.idCard())).thenReturn(false);
         when(userRepository.existsByUsername(userInformation.username())).thenReturn(false);
         when(userRepository.save(any(UserEntity.class))).thenReturn(userEntity);
 
         String result = authService.registerUser(userInformation);
 
-        String expectedResult = String.format("User with ID %s has been added", userInformation.cedula());
+        String expectedResult = String.format("User with ID %s has been added", userInformation.idCard());
         assertEquals(expectedResult, result);
 
-        verify(userRepository).existsById(userInformation.cedula());
+        verify(userRepository).existsById(userInformation.idCard());
         verify(userRepository).existsByUsername(userInformation.username());
         verify(userRepository).save(any(UserEntity.class));
     }
 
     @Test
     void shouldThrowExceptionWhenUserIdAlreadyExists() {
-        when(userRepository.existsById(userInformation.cedula())).thenReturn(true);
+        when(userRepository.existsById(userInformation.idCard())).thenReturn(true);
 
         assertThrows(UserAlreadyExistsException.class, () -> {
             authService.registerUser(userInformation);
         });
 
-        verify(userRepository).existsById(userInformation.cedula());
+        verify(userRepository).existsById(userInformation.idCard());
         verify(userRepository, never()).save(any(UserEntity.class));
     }
 
     @Test
     void shouldThrowExceptionWhenUsernameAlreadyExists() {
-        when(userRepository.existsById(userInformation.cedula())).thenReturn(false);
+        when(userRepository.existsById(userInformation.idCard())).thenReturn(false);
         when(userRepository.existsByUsername(userInformation.username())).thenReturn(true);
 
         assertThrows(UserAlreadyExistsException.class, () -> {
             authService.registerUser(userInformation);
         });
 
-        verify(userRepository).existsById(userInformation.cedula());
+        verify(userRepository).existsById(userInformation.idCard());
         verify(userRepository).existsByUsername(userInformation.username());
         verify(userRepository, never()).save(any(UserEntity.class));
     }
