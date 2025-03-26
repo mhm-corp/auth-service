@@ -1,8 +1,10 @@
 package com.mhm.bank.service;
 
 import com.mhm.bank.dto.UserRegisteredEvent;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.kafka.KafkaException;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
@@ -18,9 +20,14 @@ public class KafkaProducerService {
     }
 
     public void sendMessage(UserRegisteredEvent event) {
-        kafkaTemplate.send(TOPIC, event);
-        logger.info("User registration event sent to Kafka for user: {}, email: {}"
-                , event.username(), event.email());
+        try {
+            kafkaTemplate.send(TOPIC, event).get();
+            logger.info("User registration event sent to Kafka for user: {}, email: {}"
+                    , event.username(), event.email());
+        } catch (Exception e) {
+            logger.error("Failed to send message to Kafka: {}", e.getMessage());
+            throw new KafkaException("Failed to send message to Kafka: " + e.getMessage());
+        }
     }
 
 

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.mhm.bank.dto.UserInformation;
 import com.mhm.bank.dto.UserRegisteredEvent;
+import com.mhm.bank.repository.UserRepository;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -50,8 +51,9 @@ class AuthControllerTest {
     private ObjectMapper objectMapper;
     @Autowired
     private AuthController authController;
-
     private KafkaConsumer<String, UserRegisteredEvent> consumer;
+    @Autowired
+    private UserRepository userRepository;
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
@@ -65,7 +67,7 @@ class AuthControllerTest {
     static KafkaContainer kafka = new KafkaContainer(
             DockerImageName.parse("confluentinc/cp-kafka:7.3.3")
                     .asCompatibleSubstituteFor("confluentinc/cp-kafka")
-    );;
+    );
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
@@ -84,21 +86,8 @@ class AuthControllerTest {
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
-
         // Configure the Kafka consumer for testing
-        Map<String, Object> consumerProps = new HashMap<>();
-        consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
-        consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "test-group");
-        consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
-        consumerProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
-        consumerProps.put(JsonDeserializer.TYPE_MAPPINGS, "userRegisteredEvent:com.mhm.bank.dto.UserRegisteredEvent");
-
-
-        consumer = new KafkaConsumer<>(consumerProps, new StringDeserializer(),
-                new JsonDeserializer<>(UserRegisteredEvent.class, false));
-        consumer.subscribe(Collections.singletonList("user-registered"));
+        setupKafkaConsumer();
 
     }
 
@@ -112,6 +101,29 @@ class AuthControllerTest {
             postgres.start();
         }
 
+        if (!kafka.isRunning()) {
+            kafka.start();
+            setupKafkaConsumer();
+        }
+    }
+
+    private void setupKafkaConsumer() {
+        Map<String, Object> consumerProps = new HashMap<>();
+        consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
+        consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "test-group");
+        consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
+        consumerProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
+        consumerProps.put(JsonDeserializer.TYPE_MAPPINGS, "userRegisteredEvent:com.mhm.bank.dto.UserRegisteredEvent");
+
+        if (consumer != null) {
+            consumer.close();
+        }
+
+        consumer = new KafkaConsumer<>(consumerProps, new StringDeserializer(),
+                new JsonDeserializer<>(UserRegisteredEvent.class, false));
+        consumer.subscribe(Collections.singletonList("user-registered"));
     }
 
     @Test
@@ -171,9 +183,9 @@ class AuthControllerTest {
         postgres.stop();
 
         UserInformation validUser = new UserInformation(
-                "12345678",
-                "username123",
-                "Password123!",
+                "234567890",
+                "username234",
+                "Password234!",
                 "John",
                 "Doe",
                 "123 Main St",
@@ -195,5 +207,34 @@ class AuthControllerTest {
         postgres.start();
     }
 
+    @Test
+    void registerUser_shouldFailWithInternalServerError_whenKafkaIsDown() throws Exception {
+        kafka.stop();
+
+        UserInformation validUser = new UserInformation(
+                "3456789012",
+                "username345",
+                "Password345!",
+                "John",
+                "Doe",
+                "123 Main St",
+                "john.doe@example.com",
+                LocalDate.parse("1990-01-01"),
+                "123456789"
+        );
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validUser)))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.errorCode").value("KAFKA_ERROR"))
+                .andExpect(jsonPath("$.message").value(containsString("Error with message broker")));
+
+        assertFalse(userRepository.existsById(validUser.idCard()),
+                "User should not exist in database when Kafka is down");
+
+        kafka.start();
+        setupKafkaConsumer();
+    }
 
 }
