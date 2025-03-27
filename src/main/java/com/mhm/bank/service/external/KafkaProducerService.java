@@ -1,4 +1,4 @@
-package com.mhm.bank.service;
+package com.mhm.bank.service.external;
 
 import com.mhm.bank.dto.UserRegisteredEvent;
 
@@ -25,8 +25,8 @@ public class KafkaProducerService {
             logger.info("User registration event sent to Kafka for user: {}, email: {}"
                     , event.username(), event.email());
         } catch (Exception e) {
-            logger.error("Failed to send message to Kafka: {}", e.getMessage());
-            throw new KafkaException("Failed to send message to Kafka: " + e.getMessage());
+            logger.error("For the user {} has failed to send message to Kafka: {}", event.username(), e.getMessage());
+            throw new KafkaException("For the user {"+event.username()+"} has failed to send message to Kafka: " + e.getMessage());
         }
     }
 

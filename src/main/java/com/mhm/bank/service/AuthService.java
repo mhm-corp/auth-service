@@ -5,6 +5,7 @@ import com.mhm.bank.dto.UserRegisteredEvent;
 import com.mhm.bank.entity.UserEntity;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.repository.UserRepository;
+import com.mhm.bank.service.external.KafkaProducerService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

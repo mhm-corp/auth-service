@@ -5,6 +5,7 @@ import com.mhm.bank.dto.UserRegisteredEvent;
 import com.mhm.bank.entity.UserEntity;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.repository.UserRepository;
+import com.mhm.bank.service.external.KafkaProducerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -104,7 +105,7 @@ class AuthServiceTest {
         verify(userRepository).existsById(userInformation.idCard());
         verify(userRepository).existsByUsername(userInformation.username());
         verify(userRepository, never()).save(any(UserEntity.class));
-        verify(kafkaProducerService, never()).sendMessage(any(UserRegisteredEvent.class)); // Agregar esta verificación
+        verify(kafkaProducerService, never()).sendMessage(any(UserRegisteredEvent.class));
 
     }
 
