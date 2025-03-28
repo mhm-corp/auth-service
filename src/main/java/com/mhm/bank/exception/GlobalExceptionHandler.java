@@ -26,10 +26,14 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(UserAlreadyExistsException.class)
-    public ResponseEntity<String> handleUserAlreadyExists(UserAlreadyExistsException ex) {
+    public ResponseEntity<ErrorResponse> handleUserAlreadyExists(UserAlreadyExistsException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                "USER_EXISTS",
+                ex.getMessage()
+        );
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
-                .body(ex.getMessage());
+                .body(errorResponse);
     }
 
     @ExceptionHandler(CannotCreateTransactionException.class)

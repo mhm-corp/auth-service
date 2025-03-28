@@ -2,6 +2,7 @@ package com.mhm.bank.dto;
 
 
 
+import com.mhm.bank.validators.Adult;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -24,6 +25,7 @@ public record UserInformation (
     String address,
     @Email(message = "Email should be valid")
     String email,
+    @Adult
     LocalDate birthdate,
     @Size(max = 20, message = "The phone number is too long.")
     String phoneNumber

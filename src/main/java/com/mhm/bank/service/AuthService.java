@@ -40,7 +40,12 @@ public class AuthService {
         UserRegisteredEvent event = new UserRegisteredEvent(
                 userEntity.getId(),
                 userEntity.getUsername(),
-                userEntity.getEmail()
+                userEntity.getFirstName(),
+                userEntity.getLastName(),
+                userEntity.getEmail(),
+                userEntity.getAddress(),
+                userEntity.getPhoneNumber(),
+                userEntity.getBirthDate().toString()
         );
         kafkaProducerService.sendMessage(event);
     }
@@ -54,12 +59,12 @@ public class AuthService {
     private void doesItExist(String id, String username) throws UserAlreadyExistsException {
         if (userRepository.existsById(id)) {
             logger.error("User with ID {} already exists", id);
-            throw new UserAlreadyExistsException("User with this ID already exists");
+            throw new UserAlreadyExistsException("User with ID "+id+" already exists");
         }
 
         if (userRepository.existsByUsername(username)) {
             logger.error("Username {} is already taken", username);
-            throw new UserAlreadyExistsException("Username is already taken");
+            throw new UserAlreadyExistsException("Username "+username+" is already taken");
         }
     }
 
