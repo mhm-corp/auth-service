@@ -109,4 +109,21 @@ class AuthServiceTest {
 
     }
 
+    @Test
+    void shouldThrowExceptionWhenEmailAlreadyExists() {
+        when(userRepository.existsById(userInformation.idCard())).thenReturn(false);
+        when(userRepository.existsByUsername(userInformation.username())).thenReturn(false);
+        when(userRepository.existsByEmail(userInformation.email())).thenReturn(true);
+
+        assertThrows(UserAlreadyExistsException.class, () -> {
+            authService.registerUser(userInformation);
+        });
+
+        verify(userRepository).existsById(userInformation.idCard());
+        verify(userRepository).existsByUsername(userInformation.username());
+        verify(userRepository).existsByEmail(userInformation.email());
+        verify(userRepository, never()).save(any(UserEntity.class));
+        verify(kafkaProducerService, never()).sendMessage(any(UserRegisteredEvent.class));
+    }
+
 }
