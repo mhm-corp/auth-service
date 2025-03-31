@@ -24,7 +24,7 @@ public class AuthService {
 
     @Transactional
     public String registerUser(UserInformation userInformation) throws UserAlreadyExistsException {
-        doesItExist(userInformation.idCard(), userInformation.username());
+        doesItExist(userInformation);
 
         UserEntity userEntity = sendToDataBase(userInformation);
         sendToKafka(userEntity);
@@ -56,15 +56,20 @@ public class AuthService {
         return userEntity;
     }
 
-    private void doesItExist(String id, String username) throws UserAlreadyExistsException {
-        if (userRepository.existsById(id)) {
-            logger.error("User with ID {} already exists", id);
-            throw new UserAlreadyExistsException("User with ID "+id+" already exists");
+    private void doesItExist(UserInformation userInformation) throws UserAlreadyExistsException {
+        if (userRepository.existsById(userInformation.idCard())) {
+            logger.error("User with ID {} already exists", userInformation.idCard());
+            throw new UserAlreadyExistsException("User with ID "+userInformation.idCard()+" already exists");
         }
 
-        if (userRepository.existsByUsername(username)) {
-            logger.error("Username {} is already taken", username);
-            throw new UserAlreadyExistsException("Username "+username+" is already taken");
+        if (userRepository.existsByUsername(userInformation.username())) {
+            logger.error("Username {} is already taken", userInformation.username());
+            throw new UserAlreadyExistsException("Username "+userInformation.username()+" is already taken");
+        }
+
+        if (userRepository.existsByEmail(userInformation.email())) {
+            logger.error("Email {} is already taken", userInformation.email());
+            throw new UserAlreadyExistsException("Email "+userInformation.email()+" is already taken");
         }
     }
 
