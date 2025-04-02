@@ -6,14 +6,21 @@ import com.mhm.bank.entity.UserEntity;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.repository.UserRepository;
 import com.mhm.bank.service.external.KafkaProducerService;
+import org.apache.kafka.common.KafkaException;
+import org.apache.kafka.common.errors.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class AuthService {
     private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
+    @Value("${kafka.producer.auth.timeout}")
+    private int authTimeout;
     private final UserRepository userRepository;
     private final KafkaProducerService kafkaProducerService;
 
@@ -47,7 +54,15 @@ public class AuthService {
                 userEntity.getPhoneNumber(),
                 userEntity.getBirthDate().toString()
         );
-        kafkaProducerService.sendMessage(event);
+        try {
+            kafkaProducerService.sendMessage(event).get(authTimeout , TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            logger.error("Kafka message sending timed out", e);
+            throw new KafkaException("Kafka message sending timed out", e);
+        } catch (Exception e) {
+            logger.error("Failed to send Kafka message", e);
+            throw new KafkaException("Failed to send Kafka message", e);
+        }
     }
 
     private UserEntity sendToDataBase(UserInformation userInformation) {
