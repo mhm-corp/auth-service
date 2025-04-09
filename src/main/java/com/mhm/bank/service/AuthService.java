@@ -6,14 +6,21 @@ import com.mhm.bank.entity.UserEntity;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.repository.UserRepository;
 import com.mhm.bank.service.external.KafkaProducerService;
+import org.apache.kafka.common.KafkaException;
+import org.apache.kafka.common.errors.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class AuthService {
     private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
+    @Value("${kafka.producer.auth.timeout}")
+    private int authTimeout;
     private final UserRepository userRepository;
     private final KafkaProducerService kafkaProducerService;
 
@@ -24,7 +31,7 @@ public class AuthService {
 
     @Transactional
     public String registerUser(UserInformation userInformation) throws UserAlreadyExistsException {
-        doesItExist(userInformation.idCard(), userInformation.username());
+        doesItExist(userInformation);
 
         UserEntity userEntity = sendToDataBase(userInformation);
         sendToKafka(userEntity);
@@ -47,7 +54,15 @@ public class AuthService {
                 userEntity.getPhoneNumber(),
                 userEntity.getBirthDate().toString()
         );
-        kafkaProducerService.sendMessage(event);
+        try {
+            kafkaProducerService.sendMessage(event).get(authTimeout , TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            logger.error("Kafka message sending timed out", e);
+            throw new KafkaException("Kafka message sending timed out", e);
+        } catch (Exception e) {
+            logger.error("Failed to send Kafka message", e);
+            throw new KafkaException("Failed to send Kafka message", e);
+        }
     }
 
     private UserEntity sendToDataBase(UserInformation userInformation) {
@@ -56,15 +71,23 @@ public class AuthService {
         return userEntity;
     }
 
-    private void doesItExist(String id, String username) throws UserAlreadyExistsException {
+    private void doesItExist(UserInformation userInformation) throws UserAlreadyExistsException {
+        String id = userInformation.idCard();
         if (userRepository.existsById(id)) {
             logger.error("User with ID {} already exists", id);
             throw new UserAlreadyExistsException("User with ID "+id+" already exists");
         }
 
+        String username = userInformation.username();
         if (userRepository.existsByUsername(username)) {
             logger.error("Username {} is already taken", username);
             throw new UserAlreadyExistsException("Username "+username+" is already taken");
+        }
+
+        String email = userInformation.email();
+        if (userRepository.existsByEmail(email)) {
+            logger.error("Email {} is already taken", email);
+            throw new UserAlreadyExistsException("Email "+email+" is already taken");
         }
     }
 
