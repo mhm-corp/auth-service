@@ -1,8 +1,9 @@
 package com.mhm.bank.service;
 
-import com.mhm.bank.dto.UserInformation;
-import com.mhm.bank.dto.UserRegisteredEvent;
-import com.mhm.bank.entity.UserEntity;
+import com.mhm.bank.controller.dto.UserInformation;
+import com.mhm.bank.controller.dto.UserRegisteredEvent;
+import com.mhm.bank.exception.KeycloakException;
+import com.mhm.bank.repository.entity.UserEntity;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.repository.UserRepository;
 import com.mhm.bank.service.external.KafkaProducerService;
@@ -61,7 +62,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void shouldRegisterUserSuccessfully() throws UserAlreadyExistsException {
+    void shouldRegisterUserSuccessfully() throws UserAlreadyExistsException, KeycloakException {
         when(userRepository.existsById(userInformation.idCard())).thenReturn(false);
         when(userRepository.existsByUsername(userInformation.username())).thenReturn(false);
         when(userRepository.save(any(UserEntity.class))).thenReturn(userEntity);

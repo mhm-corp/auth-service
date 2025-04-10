@@ -3,7 +3,8 @@ package com.mhm.bank.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.mhm.bank.dto.UserInformation;
+import com.mhm.bank.controller.dto.UserInformation;
+import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,7 +43,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerUser_shouldReturnCreated_whenUserRegistrationIsSuccessful() throws Exception {
+    void registerUser_shouldReturnCreated_whenUserRegistrationIsSuccessful() throws Exception, KeycloakException {
         UserInformation userInfo = new UserInformation(
                 "12345678",
                 "testuser",
@@ -66,7 +67,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerUser_shouldThrowException_whenUserAlreadyExists() throws Exception {
+    void registerUser_shouldThrowException_whenUserAlreadyExists() throws Exception, KeycloakException {
         UserInformation userInfo = new UserInformation(
                 "12345678",
                 "testuser",
@@ -87,7 +88,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerUser_shouldThrowException_whenEmailIsInvalid() throws Exception {
+    void registerUser_shouldThrowException_whenEmailIsInvalid() throws Exception, KeycloakException {
         UserInformation userInfo = new UserInformation(
                 "12345678",
                 "testuser",
@@ -108,7 +109,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerUser_shouldThrowException_whenUserIsUnderAge() throws Exception {
+    void registerUser_shouldThrowException_whenUserIsUnderAge() throws Exception, KeycloakException {
         UserInformation userInfo = new UserInformation(
                 "12345678",
                 "testuser",
@@ -129,7 +130,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerUser_shouldThrowException_whenIdExists() throws Exception {
+    void registerUser_shouldThrowException_whenIdExists() throws Exception, KeycloakException {
         UserInformation userInfo = new UserInformation(
                 "12345678",
                 "newusername",
@@ -150,7 +151,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerUser_shouldThrowException_whenUsernameExistsWithDifferentData() throws Exception {
+    void registerUser_shouldThrowException_whenUsernameExistsWithDifferentData() throws Exception, KeycloakException {
         UserInformation userInfo = new UserInformation(
                 "87654321",
                 "testuser",

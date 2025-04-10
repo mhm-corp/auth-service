@@ -1,6 +1,6 @@
 package com.mhm.bank.service.external;
 
-import com.mhm.bank.dto.UserRegisteredEvent;
+import com.mhm.bank.controller.dto.UserRegisteredEvent;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 public class KafkaProducerService {
     private static final Logger logger = LoggerFactory.getLogger(KafkaProducerService.class);
     @Value("${kafka.producer.service.timeout}")
-    private int serviceTimeout;
+    private static int serviceTimeout;
     private static final String TOPIC = "user-registered";
 
     private final KafkaTemplate<String, UserRegisteredEvent> kafkaTemplate;
