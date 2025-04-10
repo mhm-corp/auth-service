@@ -13,10 +13,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.kafka.KafkaException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
+@PreAuthorize("hasRole('admin_client_role')") //verificar si se puede colocar en el properties
 @Tag(name = "Authentication and Authorization API", description = "REST API related with user management")
 public class AuthController {
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
@@ -34,16 +37,17 @@ public class AuthController {
             @ApiResponse(responseCode = "409", description = "User already exists"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<String> registerUser(@Valid @RequestBody UserInformation userInformation) throws KeycloakException, UserAlreadyExistsException {
+    public ResponseEntity<String> registerUser(@Valid @RequestBody UserInformation userInformation)
+            throws UserAlreadyExistsException, KeycloakException, KafkaException {
+
         String result = authService.registerUser(userInformation);
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
-
-
-    @GetMapping("/hello")
-    public String helloAdmin () {
-        return "Hello Spring boot wit keycloak - Admin";
+    @GetMapping ("/keycloak/search")
+    public ResponseEntity<?> findAllUsersByKeycloak (){
+        return ResponseEntity.ok(authService.findAllUsersByKeycloak());
     }
+
 
 }

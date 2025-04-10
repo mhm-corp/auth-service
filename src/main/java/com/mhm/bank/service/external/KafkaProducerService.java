@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 public class KafkaProducerService {
     private static final Logger logger = LoggerFactory.getLogger(KafkaProducerService.class);
     @Value("${kafka.producer.service.timeout}")
-    private static int serviceTimeout;
+    private int serviceTimeout;
     private static final String TOPIC = "user-registered";
 
     private final KafkaTemplate<String, UserRegisteredEvent> kafkaTemplate;

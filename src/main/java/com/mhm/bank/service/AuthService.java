@@ -10,14 +10,18 @@ import com.mhm.bank.repository.entity.UserEntity;
 import com.mhm.bank.service.external.IKeycloakService;
 import com.mhm.bank.service.external.KafkaProducerService;
 import org.apache.kafka.common.KafkaException;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Service
 public class AuthService {
@@ -25,7 +29,7 @@ public class AuthService {
     @Value("${kafka.producer.auth.timeout}")
     private int authTimeout;
     @Value("${keycloak.realm.role.user.default}")
-    private String KC_USER_ROLE;
+    private String kcUserRole;
 
 
     private final UserRepository userRepository;
@@ -39,27 +43,18 @@ public class AuthService {
     }
 
     @Transactional
-    public String registerUser(UserInformation userInformation) throws UserAlreadyExistsException {
-      //  try {
-            doesItExist(userInformation);
-          //  sendToKeycloak(userInformation);
-            UserEntity userEntity = sendToDataBase(userInformation);
-            sendToKafka(userInformation);
+    public String registerUser(UserInformation userInformation) throws UserAlreadyExistsException, KeycloakException, KafkaException {
+            doesItExistInDataBase(userInformation);
+            sendUserToKeycloak(userInformation);
+            UserEntity userEntity = sendUserToDataBase(userInformation);
+            sendEventToKafka(userInformation);
 
             logger.info("User {} successfully registered with ID: {}", userInformation.username(), userEntity.getId());
-            return String.format("User {} with ID %s has been added", userInformation.username(),userEntity.getId());
-/*
-        } catch (Exception e) {
-            logger.error("Error during user {} registration: {}", userInformation.username(), e.getMessage());
-            throw e;
-        } /*catch (KeycloakException e) {
-            throw new RuntimeException(e);
-        }*/
-
+            return String.format("User %s with ID %s has been added", userInformation.username(),userEntity.getId());
     }
 
-    private void sendToKeycloak(UserInformation userInformation) throws KeycloakException {
-        Set<String> roles = Set.of(KC_USER_ROLE);
+    private void sendUserToKeycloak(UserInformation userInformation) throws KeycloakException {
+        Set<String> roles = Set.of(kcUserRole); //se debe cambiar por el rol especifico del usuario
 
         UserKCDto userKCDto = new UserKCDto(
                 userInformation.username(),
@@ -74,7 +69,7 @@ public class AuthService {
         }
     }
 
-    private void sendToKafka(UserInformation userInformation) {
+    private void sendEventToKafka(UserInformation userInformation) throws KafkaException {
         UserRegisteredEvent event = new UserRegisteredEvent(
                 userInformation.idCard(),
                 userInformation.username(),
@@ -86,20 +81,24 @@ public class AuthService {
                 userInformation.birthdate().toString()
         );
         try {
-            kafkaProducerService.sendMessage(event).get(authTimeout , TimeUnit.SECONDS);
-        } catch (Exception e) {
-            logger.error("Failed for user {} to send Kafka message {} ", userInformation.username(), e);
-            throw new KafkaException(String.format("Failed for user {} to send Kafka message",userInformation.username()), e);
+            logger.info("Sending message to Kafka with timeout: {}ms", authTimeout);
+            kafkaProducerService.sendMessage(event).get(authTimeout, TimeUnit.SECONDS);
+            logger.info("Message sent successfully for user: {}", userInformation.username());
+        } catch (ExecutionException | InterruptedException | TimeoutException e) {
+            logger.error("Kafka error details - User: {}, Error type: {}, Message: {}",
+                    userInformation.username(), e.getClass().getSimpleName(), e.getMessage());
+            Thread.currentThread().interrupt();
+            throw new KafkaException("Failed to send Kafka message for user: " + userInformation.username(), e);
         }
     }
 
-    private UserEntity sendToDataBase(UserInformation userInformation) {
+    private UserEntity sendUserToDataBase(UserInformation userInformation) {
         UserEntity userEntity = getUserEntity(userInformation);
         userRepository.save(userEntity);
         return userEntity;
     }
 
-    private void doesItExist(UserInformation userInformation) throws UserAlreadyExistsException {
+    private void doesItExistInDataBase(UserInformation userInformation) throws UserAlreadyExistsException {
         String id = userInformation.idCard();
         if (userRepository.existsById(id)) {
             logger.error("User with ID {} already exists", id);
@@ -119,7 +118,7 @@ public class AuthService {
         }
     }
 
-    private static UserEntity getUserEntity(UserInformation userInformation) {
+    private UserEntity getUserEntity(UserInformation userInformation) {
         UserEntity userEntity = new UserEntity();
         userEntity.setId(userInformation.idCard());
         userEntity.setUsername(userInformation.username());
@@ -132,4 +131,7 @@ public class AuthService {
         return userEntity;
     }
 
+    public List<UserRepresentation> findAllUsersByKeycloak() {
+        return keycloakService.findAllUsers();
+    }
 }

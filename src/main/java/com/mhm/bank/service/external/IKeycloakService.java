@@ -10,9 +10,6 @@ import java.util.List;
 public interface IKeycloakService {
 
     List<UserRepresentation> findAllUsers();
-    List<UserRepresentation> searchUserByUsername (String username);
     boolean createUser(UserKCDto userDto) throws KeycloakException;
-    void deleteUser(String userId);
-    void updateUser(String userId, UserKCDto userDto);
 
 }

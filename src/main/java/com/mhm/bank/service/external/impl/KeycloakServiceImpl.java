@@ -22,26 +22,26 @@ import java.util.List;
 public class KeycloakServiceImpl implements IKeycloakService {
     private static final Logger log = LoggerFactory.getLogger(KeycloakServiceImpl.class);
     @Value("${keycloak.realm.role.user.default}")
-    private static String KC_USER_ROLE;
+    private String kcUserRole;
 
-    private final static int KC_USER_CREATED_SUCCESFUL = 201;
-    private final static int KC_ERROR_USER_EXISTED = 409;
+    private static final int KC_USER_CREATED_SUCCESFUL = 201;
+    private static final int KC_ERROR_USER_EXISTED = 409;
 
+    private KeycloakProvider keycloakProvider;
 
-    @Override
-    public List<UserRepresentation> findAllUsers() {
-        return KeycloakProvider.getRealmResouce().users().list();
+    public KeycloakServiceImpl(KeycloakProvider keycloakProvider) {
+        this.keycloakProvider = keycloakProvider;
     }
 
     @Override
-    public List<UserRepresentation> searchUserByUsername(String username) {
-        return KeycloakProvider.getRealmResouce().users().search(username, true);
+    public List<UserRepresentation> findAllUsers() {
+        return keycloakProvider.getRealmResouce().users().list();
     }
 
     @Override
     public boolean createUser(UserKCDto userDto) throws KeycloakException {
         int status  = 0;
-        UsersResource usersResource = KeycloakProvider.getUserResource();
+        UsersResource usersResource = keycloakProvider.getUserResource();
 
         Response response = createNewUser(userDto, usersResource);
         status = response.getStatus();
@@ -67,23 +67,13 @@ public class KeycloakServiceImpl implements IKeycloakService {
 
     private void assignRoleToUser(UserKCDto userDto, String userId) {
 
-        RealmResource realmResource = KeycloakProvider.getRealmResouce();
+        RealmResource realmResource = keycloakProvider.getRealmResouce();
         List<RoleRepresentation> roleRepresentations = null;
 
         if (userDto.roles() == null || userDto.roles().isEmpty()) {
-            roleRepresentations = List.of(realmResource.roles().get(KC_USER_ROLE).toRepresentation());
+            roleRepresentations = List.of(realmResource.roles().get(kcUserRole).toRepresentation());
         } else {
-            List<String> availableRoles = realmResource.roles().list().stream()
-                    .map(RoleRepresentation::getName)
-                    .toList();
-
-            List<String> nonExistentRoles = userDto.roles().stream()
-                    .filter(role -> !availableRoles.contains(role))
-                    .toList();
-
-            if (!nonExistentRoles.isEmpty()) {
-                log.warn("The following roles don't exist in Keycloak: {}", nonExistentRoles);
-            }
+           validateRolesExistKeycloak(realmResource, userDto);
 
             roleRepresentations = realmResource.roles()
                     .list()
@@ -95,7 +85,7 @@ public class KeycloakServiceImpl implements IKeycloakService {
 
             if (roleRepresentations.isEmpty()) {
                 log.warn("No valid roles found. Assigning default role.");
-                roleRepresentations = List.of(realmResource.roles().get(KC_USER_ROLE).toRepresentation());
+                roleRepresentations = List.of(realmResource.roles().get(kcUserRole).toRepresentation());
             }
         }
 
@@ -106,7 +96,21 @@ public class KeycloakServiceImpl implements IKeycloakService {
 
     }
 
+    private void validateRolesExistKeycloak (RealmResource realmResource, UserKCDto userDto){
+        List<String> availableRoles = realmResource.roles()
+                .list()
+                .stream()
+                .map(RoleRepresentation::getName)
+                .toList();
 
+        List<String> nonExistentRoles = userDto.roles().stream()
+                .filter(role -> !availableRoles.contains(role))
+                .toList();
+
+        if (!nonExistentRoles.isEmpty()) {
+            log.warn("The following roles don't exist in Keycloak: {}", nonExistentRoles);
+        }
+    }
 
     private void setPasswordUser(UserKCDto userDto, UsersResource usersResource, String userId) {
         CredentialRepresentation credentialRepresentation = new CredentialRepresentation();
@@ -125,18 +129,8 @@ public class KeycloakServiceImpl implements IKeycloakService {
         userRepresentation.setEmailVerified(true);
         userRepresentation.setEnabled(true);
 
-        Response response = usersResource.create(userRepresentation);
-        return response;
+        return usersResource.create(userRepresentation);
     }
 
-    @Override
-    public void deleteUser(String userId) {
-
-    }
-
-    @Override
-    public void updateUser(String userId, UserKCDto userDto) {
-
-    }
 
 }

@@ -12,28 +12,28 @@ import org.springframework.stereotype.Component;
 public class KeycloakProvider {
 
     @Value("${keycloak.server.url}")
-    private static String SERVER_KEYCLOAK_URL;
+    private String serverKeycloakUrl;
     @Value("${keycloak.realm_name}")
-    private static String REALM_NAME;
-    @Value("${keycloak.realm_master}")
-    private static String REALM_MASTER;
+    private String realmName;
+    @Value("${keycloak.realm.master}")
+    private String realmMaster;
     @Value("${keycloak.realm.admin_app}")
-    private static String ADMIN_CLI;
-    @Value("${keycloak.admin.username}")
-    private static String USER_CONSOLE = "admin";
-    @Value("${keycloak.admin.password}")
-    private static String PASSWORD_CONSOLE = "admin";
+    private String adminCli;
+    @Value("${keycloak.console.username}")
+    private String userConsole;
+    @Value("${keycloak.console.password}")
+    private String passwordConsole;
     @Value("${keycloak.client.client_secret}")
-    private static String CLIENT_SECRET;
+    private String clientSecret;
 
-    public static RealmResource getRealmResouce() {
+    public RealmResource getRealmResouce() {
         Keycloak keycloak = KeycloakBuilder.builder()
-                .serverUrl(SERVER_KEYCLOAK_URL)
-                .realm(REALM_MASTER)
-                .clientId(ADMIN_CLI)
-                .username(USER_CONSOLE)
-                .password(PASSWORD_CONSOLE)
-                .clientSecret(CLIENT_SECRET)
+                .serverUrl(serverKeycloakUrl)
+                .realm(realmMaster)
+                .clientId(adminCli)
+                .username(userConsole)
+                .password(passwordConsole)
+                .clientSecret(clientSecret)
                 .resteasyClient(
                         new ResteasyClientBuilderImpl()
                                 .connectionPoolSize(10)
@@ -41,10 +41,10 @@ public class KeycloakProvider {
                 )
                 .build();
 
-        return keycloak.realm(REALM_NAME);
+        return keycloak.realm(realmName);
     }
 
-    public static UsersResource getUserResource() {
+    public UsersResource getUserResource() {
         return getRealmResouce().users();
     }
 
