@@ -54,7 +54,7 @@ public class AuthService {
     }
 
     private void sendUserToKeycloak(UserInformation userInformation) throws KeycloakException {
-        Set<String> roles = Set.of(kcUserRole); //se debe cambiar por el rol especifico del usuario
+        Set<String> roles = Set.of(kcUserRole);
 
         UserKCDto userKCDto = new UserKCDto(
                 userInformation.username(),
