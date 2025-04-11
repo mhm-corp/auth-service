@@ -80,13 +80,16 @@ public class AuthService {
                 userInformation.phoneNumber(),
                 userInformation.birthdate().toString()
         );
+
         try {
-            logger.info("Sending message to Kafka with timeout: {}ms", authTimeout);
-            kafkaProducerService.sendMessage(event).get(authTimeout, TimeUnit.SECONDS);
-            logger.info("Message sent successfully for user: {}", userInformation.username());
+            logger.info("Sending message to Kafka for user: {}", userInformation.username());
+            kafkaProducerService.sendMessage(event)
+                    .thenAccept(result -> logger.info("Message sent successfully to partition {} for user: {}",
+                            result.getRecordMetadata().partition(), userInformation.username()))
+                    .get(authTimeout, TimeUnit.SECONDS);
         } catch (ExecutionException | InterruptedException | TimeoutException e) {
-            logger.error("Kafka error details - User: {}, Error type: {}, Message: {}",
-                    userInformation.username(), e.getClass().getSimpleName(), e.getMessage());
+            logger.error("Failed to send Kafka message - User: {}, Error: {}",
+                    userInformation.username(), e.getMessage());
             Thread.currentThread().interrupt();
             throw new KafkaException("Failed to send Kafka message for user: " + userInformation.username(), e);
         }

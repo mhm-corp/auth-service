@@ -27,13 +27,18 @@ public class KafkaProducerService {
     }
 
     public CompletableFuture<SendResult<String, UserRegisteredEvent>> sendMessage(UserRegisteredEvent event) {
-        try {
-            return kafkaTemplate.send(TOPIC, event.userId(), event)
-                    .orTimeout(serviceTimeout, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            logger.error("For the user {} has failed to send message to Kafka: {}", event.username(), e.getMessage());
-            throw new KafkaException("For the user {"+event.username()+"} has failed to send message to Kafka: " + e.getMessage());
+        if (event == null || event.userId() == null) {
+            throw new IllegalArgumentException("Event or userId cannot be null");
         }
+
+        return kafkaTemplate.send(TOPIC, event.userId(), event)
+                .orTimeout(serviceTimeout, TimeUnit.SECONDS)
+                .exceptionally(throwable -> {
+                    String errorMessage = String.format("Failed to send message for user %s: %s",
+                            event.username(), throwable.getMessage());
+                    logger.error(errorMessage);
+                    throw new KafkaException(errorMessage, throwable);
+                });
     }
 
 
