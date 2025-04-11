@@ -44,13 +44,27 @@ public class AuthService {
 
     @Transactional
     public String registerUser(UserInformation userInformation) throws UserAlreadyExistsException, KeycloakException, KafkaException {
+        String usernameAfterKC = null;
+        try {
             doesItExistInDataBase(userInformation);
             sendUserToKeycloak(userInformation);
+            usernameAfterKC = userInformation.username();
             UserEntity userEntity = sendUserToDataBase(userInformation);
             sendEventToKafka(userInformation);
 
             logger.info("User {} successfully registered with ID: {}", userInformation.username(), userEntity.getId());
-            return String.format("User %s with ID %s has been added", userInformation.username(),userEntity.getId());
+            return String.format("User %s with ID %s has been added", userInformation.username(), userEntity.getId());
+        } catch (Exception e) {
+            if (usernameAfterKC != null) {
+                try {
+                    keycloakService.deleteUser(usernameAfterKC);
+                    logger.info("User {} deleted from Keycloak after transaction failure", usernameAfterKC);
+                } catch (Exception ke) {
+                    logger.error("Failed to delete user {} from Keycloak after transaction failure", usernameAfterKC, ke);
+                }
+            }
+            throw e;
+        }
     }
 
     private void sendUserToKeycloak(UserInformation userInformation) throws KeycloakException {

@@ -132,5 +132,23 @@ public class KeycloakServiceImpl implements IKeycloakService {
         return usersResource.create(userRepresentation);
     }
 
+    @Override
+    public void deleteUser(String usernameAfterKC) throws KeycloakException {
+        try {
+            UsersResource usersResource = keycloakProvider.getUserResource();
+            List<UserRepresentation> users = usersResource.searchByUsername(usernameAfterKC, true);
+
+            if (!users.isEmpty()) {
+                String userId = users.get(0).getId();
+                usersResource.get(userId).remove();
+                log.info("User {} successfully deleted from Keycloak", usernameAfterKC);
+            } else {
+                log.warn("User {} not found in Keycloak", usernameAfterKC);
+            }
+        } catch (Exception e) {
+            log.error("Error deleting user {} from Keycloak: {}", usernameAfterKC, e.getMessage());
+            throw new KeycloakException("Error deleting user from Keycloak: " + e.getMessage());
+        }
+    }
 
 }

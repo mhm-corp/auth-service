@@ -12,4 +12,5 @@ public interface IKeycloakService {
     List<UserRepresentation> findAllUsers();
     boolean createUser(UserKCDto userDto) throws KeycloakException;
 
+    void deleteUser(String usernameAfterKC) throws KeycloakException;
 }
