@@ -1,4 +1,4 @@
-package com.mhm.bank.validators;
+package com.mhm.bank.controller.validators;
 
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;

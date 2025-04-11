@@ -1,6 +1,6 @@
 package com.mhm.bank.repository;
 
-import com.mhm.bank.entity.UserEntity;
+import com.mhm.bank.repository.entity.UserEntity;
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 

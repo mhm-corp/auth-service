@@ -3,19 +3,24 @@ package com.mhm.bank.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.mhm.bank.dto.UserInformation;
+import com.mhm.bank.controller.dto.UserInformation;
+import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.kafka.KafkaException;
 
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -28,6 +33,7 @@ class AuthControllerTest {
 
     @Mock
     private AuthService authService;
+
 
     @InjectMocks
     private AuthController authController;
@@ -42,7 +48,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerUser_shouldReturnCreated_whenUserRegistrationIsSuccessful() throws Exception {
+    void registerUser_shouldReturnCreated_whenUserRegistrationIsSuccessful() throws Exception, KeycloakException {
         UserInformation userInfo = new UserInformation(
                 "12345678",
                 "testuser",
@@ -66,7 +72,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerUser_shouldThrowException_whenUserAlreadyExists() throws Exception {
+    void registerUser_shouldThrowException_whenUserAlreadyExists() throws Exception, KeycloakException {
         UserInformation userInfo = new UserInformation(
                 "12345678",
                 "testuser",
@@ -87,7 +93,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerUser_shouldThrowException_whenEmailIsInvalid() throws Exception {
+    void registerUser_shouldThrowException_whenEmailIsInvalid() throws Exception, KeycloakException {
         UserInformation userInfo = new UserInformation(
                 "12345678",
                 "testuser",
@@ -108,7 +114,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerUser_shouldThrowException_whenUserIsUnderAge() throws Exception {
+    void registerUser_shouldThrowException_whenUserIsUnderAge() throws Exception, KeycloakException {
         UserInformation userInfo = new UserInformation(
                 "12345678",
                 "testuser",
@@ -129,7 +135,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerUser_shouldThrowException_whenIdExists() throws Exception {
+    void registerUser_shouldThrowException_whenIdExists() throws Exception, KeycloakException {
         UserInformation userInfo = new UserInformation(
                 "12345678",
                 "newusername",
@@ -150,7 +156,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerUser_shouldThrowException_whenUsernameExistsWithDifferentData() throws Exception {
+    void registerUser_shouldThrowException_whenUsernameExistsWithDifferentData() throws Exception, KeycloakException {
         UserInformation userInfo = new UserInformation(
                 "87654321",
                 "testuser",
@@ -170,5 +176,25 @@ class AuthControllerTest {
         verify(authService).registerUser(userInfo);
     }
 
+    @Test
+    void registerUser_shouldThrowException_whenKafkaErrorOccurs() throws Exception, KeycloakException {
+        UserInformation userInfo = new UserInformation(
+                "12345678",
+                "testuser",
+                "Password123!",
+                "John",
+                "Doe",
+                "123 Main St",
+                "john@example.com",
+                LocalDate.of(1990, 1, 1),
+                "123456789"
+        );
+
+        when(authService.registerUser(any(UserInformation.class)))
+                .thenThrow(new KafkaException("Failed to process message"));
+
+        assertThrows(KafkaException.class, () -> authController.registerUser(userInfo));
+        verify(authService).registerUser(userInfo);
+    }
 
 }

@@ -1,4 +1,4 @@
-package com.mhm.bank.dto;
+package com.mhm.bank.controller.dto;
 
 public record UserRegisteredEvent(
         String userId,

@@ -1,4 +1,4 @@
-package com.mhm.bank.entity;
+package com.mhm.bank.repository.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
