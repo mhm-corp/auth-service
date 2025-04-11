@@ -10,13 +10,17 @@ import com.mhm.bank.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.kafka.KafkaException;
 
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -29,6 +33,7 @@ class AuthControllerTest {
 
     @Mock
     private AuthService authService;
+
 
     @InjectMocks
     private AuthController authController;
@@ -171,5 +176,25 @@ class AuthControllerTest {
         verify(authService).registerUser(userInfo);
     }
 
+    @Test
+    void registerUser_shouldThrowException_whenKafkaErrorOccurs() throws Exception, KeycloakException {
+        UserInformation userInfo = new UserInformation(
+                "12345678",
+                "testuser",
+                "Password123!",
+                "John",
+                "Doe",
+                "123 Main St",
+                "john@example.com",
+                LocalDate.of(1990, 1, 1),
+                "123456789"
+        );
+
+        when(authService.registerUser(any(UserInformation.class)))
+                .thenThrow(new KafkaException("Failed to process message"));
+
+        assertThrows(KafkaException.class, () -> authController.registerUser(userInfo));
+        verify(authService).registerUser(userInfo);
+    }
 
 }
