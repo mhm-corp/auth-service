@@ -10,7 +10,7 @@ import java.util.List;
 public interface IKeycloakService {
 
     List<UserRepresentation> findAllUsers();
-    boolean createUser(UserKCDto userDto) throws KeycloakException;
+    boolean createUser(UserKCDto userDto, String authToken) throws KeycloakException;
 
     void deleteUser(String usernameAfterKC) throws KeycloakException;
 }

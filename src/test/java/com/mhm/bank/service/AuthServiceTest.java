@@ -80,7 +80,7 @@ class AuthServiceTest {
         when(userRepository.existsByUsername(userInformation.username())).thenReturn(false);
         when(userRepository.existsByEmail(userInformation.email())).thenReturn(false);
         when(userRepository.save(any(UserEntity.class))).thenReturn(userEntity);
-        when(keycloakService.createUser(any())).thenReturn(true);
+        when(keycloakService.createUser(any(), anyString())).thenReturn(true);
 
         // Create producer record
         ProducerRecord<String, UserRegisteredEvent> producerRecord =
@@ -175,7 +175,7 @@ class AuthServiceTest {
         when(userRepository.existsById(userInformation.idCard())).thenReturn(false);
         when(userRepository.existsByUsername(userInformation.username())).thenReturn(false);
         when(userRepository.existsByEmail(userInformation.email())).thenReturn(false);
-        when(keycloakService.createUser(any())).thenReturn(false);
+        when(keycloakService.createUser(any(),anyString())).thenReturn(false);
 
         assertThrows(KeycloakException.class, () -> {
             authService.registerUser(userInformation);
@@ -190,7 +190,7 @@ class AuthServiceTest {
         when(userRepository.existsById(userInformation.idCard())).thenReturn(false);
         when(userRepository.existsByUsername(userInformation.username())).thenReturn(false);
         when(userRepository.existsByEmail(userInformation.email())).thenReturn(false);
-        when(keycloakService.createUser(any())).thenReturn(true);
+        when(keycloakService.createUser(any(),anyString())).thenReturn(true);
         when(userRepository.save(any(UserEntity.class))).thenReturn(userEntity);
         doThrow(new KafkaException("Kafka error")).when(kafkaProducerService).sendMessage(any());
 

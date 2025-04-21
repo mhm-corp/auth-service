@@ -39,7 +39,7 @@ public class KeycloakServiceImpl implements IKeycloakService {
     }
 
     @Override
-    public boolean createUser(UserKCDto userDto) throws KeycloakException {
+    public boolean createUser(UserKCDto userDto, String authToken) throws KeycloakException {
         int status  = 0;
         UsersResource usersResource = keycloakProvider.getUserResource();
 

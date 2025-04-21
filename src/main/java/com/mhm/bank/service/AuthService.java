@@ -1,5 +1,6 @@
 package com.mhm.bank.service;
 
+import com.mhm.bank.config.KeycloakTokenProvider;
 import com.mhm.bank.controller.dto.UserInformation;
 import com.mhm.bank.controller.dto.UserKCDto;
 import com.mhm.bank.controller.dto.UserRegisteredEvent;
@@ -17,6 +18,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.KeyException;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -35,19 +37,22 @@ public class AuthService {
     private final UserRepository userRepository;
     private final KafkaProducerService kafkaProducerService;
     private final IKeycloakService keycloakService;
+    private final KeycloakTokenProvider tokenProvider;
 
-    public AuthService(UserRepository userRepository, KafkaProducerService kafkaProducerService, IKeycloakService keycloakService) {
+    public AuthService(UserRepository userRepository, KafkaProducerService kafkaProducerService, IKeycloakService keycloakService, KeycloakTokenProvider tokenProvider) {
         this.userRepository = userRepository;
         this.kafkaProducerService = kafkaProducerService;
         this.keycloakService = keycloakService;
+        this.tokenProvider = tokenProvider;
     }
 
     @Transactional
     public String registerUser(UserInformation userInformation) throws UserAlreadyExistsException, KeycloakException, KafkaException {
         String usernameAfterKC = null;
+        String token = getTokenAuth();
         try {
             doesItExistInDataBase(userInformation);
-            sendUserToKeycloak(userInformation);
+            sendUserToKeycloak(userInformation, token);
             usernameAfterKC = userInformation.username();
             UserEntity userEntity = sendUserToDataBase(userInformation);
             sendEventToKafka(userInformation);
@@ -66,8 +71,15 @@ public class AuthService {
             throw e;
         }
     }
+    private String getTokenAuth () throws KeycloakException, KeycloakException {
+        String token = tokenProvider.getAccessToken();
+        if (token == null) {
+            throw new KeycloakException("Failed to obtain Keycloak token");
+        }
+        return token;
+    }
 
-    private void sendUserToKeycloak(UserInformation userInformation) throws KeycloakException {
+    private void sendUserToKeycloak(UserInformation userInformation, String token) throws KeycloakException {
         Set<String> roles = Set.of(kcUserRole);
 
         UserKCDto userKCDto = new UserKCDto(
@@ -77,7 +89,7 @@ public class AuthService {
                 roles
 
         );
-        boolean success = keycloakService.createUser(userKCDto);
+        boolean success = keycloakService.createUser(userKCDto, "Bearer " + token);
         if (!success) {
             throw new KeycloakException(String.format("Failed to create user %s in Keycloak", userKCDto.username()));
         }

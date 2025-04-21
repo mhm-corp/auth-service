@@ -67,12 +67,13 @@ class KeycloakServiceImplTest {
     @Test
     void createUser_ShouldCreateUserSuccessfully() throws Exception, KeycloakException {
         UserKCDto userDto = new UserKCDto("testUser", "test@email.com", "password", null);
+        String authToken = "test-token";
         String userId = "test-user-id";
         URI location = new URI("/users/" + userId);
 
         setupMocksForSuccessfulUserCreation(location);
 
-        boolean result = keycloakService.createUser(userDto);
+        boolean result = keycloakService.createUser(userDto, authToken);
 
         assertTrue(result);
         verify(usersResource).create(any(UserRepresentation.class));
@@ -81,10 +82,11 @@ class KeycloakServiceImplTest {
     @Test
     void createUser_ShouldThrowException_WhenUserExists() {
         UserKCDto userDto = new UserKCDto("existingUser", "test@email.com", "password", null);
+        String authToken = "test-token";
         when(keycloakProvider.getUserResource()).thenReturn(usersResource);
         when(usersResource.create(any(UserRepresentation.class))).thenReturn(Response.status(409).build());
 
-        assertThrows(KeycloakException.class, () -> keycloakService.createUser(userDto));
+        assertThrows(KeycloakException.class, () -> keycloakService.createUser(userDto, authToken));
     }
 
     @Test
