@@ -1,8 +1,8 @@
-package com.mhm.bank.dto;
+package com.mhm.bank.controller.dto;
 
 
 
-import com.mhm.bank.validators.Adult;
+import com.mhm.bank.controller.validators.Adult;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
