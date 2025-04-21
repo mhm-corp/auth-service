@@ -10,15 +10,15 @@ import com.mhm.bank.repository.UserRepository;
 import com.mhm.bank.repository.entity.UserEntity;
 import com.mhm.bank.service.external.IKeycloakService;
 import com.mhm.bank.service.external.KafkaProducerService;
-import org.apache.kafka.common.KafkaException;
+
 import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.KafkaException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.security.KeyException;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -71,7 +71,7 @@ public class AuthService {
             throw e;
         }
     }
-    private String getTokenAuth () throws KeycloakException, KeycloakException {
+    String getTokenAuth() throws KeycloakException {
         String token = tokenProvider.getAccessToken();
         if (token == null) {
             throw new KeycloakException("Failed to obtain Keycloak token");
