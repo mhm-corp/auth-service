@@ -1,6 +1,8 @@
 package com.mhm.bank.service;
 
 import com.mhm.bank.config.KeycloakTokenProvider;
+import com.mhm.bank.controller.dto.LoginRequest;
+import com.mhm.bank.controller.dto.TokensUser;
 import com.mhm.bank.controller.dto.UserInformation;
 import com.mhm.bank.controller.dto.UserRegisteredEvent;
 import com.mhm.bank.exception.KeycloakException;
@@ -248,6 +250,54 @@ class AuthServiceTest {
         verify(keycloakService).createUser(any(), eq("Bearer " + mockToken));
         verify(userRepository).save(any(UserEntity.class));
         verify(keycloakService).deleteUser(userInformation.username());
+    }
+
+    @Test
+    void shouldLoginUserSuccessfully() throws KeycloakException {
+        String mockToken = "test-token";
+        LoginRequest loginRequest = new LoginRequest("testuser", "password123");
+        TokensUser expectedTokens = new TokensUser("access-token-123", "refresh-token-456");
+
+        when(tokenProvider.getAccessToken()).thenReturn(mockToken);
+        when(keycloakService.loginUser(loginRequest, mockToken)).thenReturn(expectedTokens);
+
+        TokensUser result = authService.loginUser(loginRequest);
+
+        assertEquals(expectedTokens.getAccessToken(), result.getAccessToken());
+        assertEquals(expectedTokens.getRefreshToken(), result.getRefreshToken());
+        verify(tokenProvider).getAccessToken();
+        verify(keycloakService).loginUser(loginRequest, mockToken);
+    }
+
+    @Test
+    void shouldThrowExceptionWhenLoginFails() throws KeycloakException {
+        String mockToken = "test-token";
+        LoginRequest loginRequest = new LoginRequest("testuser", "password123");
+        String errorMessage = "Authentication failed";
+
+        when(tokenProvider.getAccessToken()).thenReturn(mockToken);
+        when(keycloakService.loginUser(loginRequest, mockToken))
+                .thenThrow(new KeycloakException(errorMessage));
+
+        KeycloakException exception = assertThrows(KeycloakException.class, () ->
+                authService.loginUser(loginRequest));
+
+        assertEquals(errorMessage, exception.getMessage());
+        verify(tokenProvider).getAccessToken();
+        verify(keycloakService).loginUser(loginRequest, mockToken);
+    }
+
+    @Test
+    void shouldThrowExceptionWhenTokenNotAvailable() throws KeycloakException {
+        LoginRequest loginRequest = new LoginRequest("testuser", "password123");
+        when(tokenProvider.getAccessToken()).thenReturn(null);
+
+        KeycloakException exception = assertThrows(KeycloakException.class, () ->
+                authService.loginUser(loginRequest));
+
+        assertEquals("Failed to obtain Keycloak token", exception.getMessage());
+        verify(tokenProvider).getAccessToken();
+        verify(keycloakService, never()).loginUser(any(), any());
     }
 
 }
