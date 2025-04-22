@@ -1,6 +1,9 @@
 package com.mhm.bank.service.external.impl;
 
 import com.mhm.bank.config.KeycloakProvider;
+import com.mhm.bank.config.KeycloakTokenProvider;
+import com.mhm.bank.controller.dto.LoginRequest;
+import com.mhm.bank.controller.dto.TokensUser;
 import com.mhm.bank.controller.dto.UserKCDto;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.service.external.IKeycloakService;
@@ -28,10 +31,13 @@ public class KeycloakServiceImpl implements IKeycloakService {
     private static final int KC_ERROR_USER_EXISTED = 409;
 
     private KeycloakProvider keycloakProvider;
+    private KeycloakTokenProvider keycloakTokenProvider;
 
-    public KeycloakServiceImpl(KeycloakProvider keycloakProvider) {
+    public KeycloakServiceImpl(KeycloakProvider keycloakProvider, KeycloakTokenProvider keycloakTokenProvider) {
         this.keycloakProvider = keycloakProvider;
+        this.keycloakTokenProvider = keycloakTokenProvider;
     }
+
 
     @Override
     public List<UserRepresentation> findAllUsers() {
@@ -125,6 +131,8 @@ public class KeycloakServiceImpl implements IKeycloakService {
     private Response createNewUser(UserKCDto userDto,  UsersResource usersResource){
         UserRepresentation userRepresentation = new UserRepresentation();
         userRepresentation.setUsername(userDto.username());
+        userRepresentation.setFirstName(userDto.firstName());
+        userRepresentation.setLastName(userDto.lastName());
         userRepresentation.setEmail(userDto.email());
         userRepresentation.setEmailVerified(true);
         userRepresentation.setEnabled(true);
@@ -149,6 +157,11 @@ public class KeycloakServiceImpl implements IKeycloakService {
             log.error("Error deleting user {} from Keycloak: {}", usernameAfterKC, e.getMessage());
             throw new KeycloakException("Error deleting user from Keycloak: " + e.getMessage());
         }
+    }
+
+    @Override
+    public TokensUser loginUser(LoginRequest loginRequest, String token) throws KeycloakException {
+         return keycloakTokenProvider.getUserAccessToken(loginRequest.username(), loginRequest.password(), token);
     }
 
 }

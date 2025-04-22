@@ -1,7 +1,8 @@
 package com.mhm.bank.config;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.mhm.bank.controller.dto.TokensUser;
 import com.mhm.bank.exception.KeycloakException;
+import com.mhm.bank.service.dto.TokenResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
@@ -25,10 +26,14 @@ public class KeycloakTokenProvider {
     @Value("${keycloak.user.admin.app.password}")
     private String adminAppPassword;
 
+    private String getTokenUrlFromKeycloak (){
+        return serverUrl + "/realms/" + realm + "/protocol/openid-connect/token";
+    }
 
-    public String getAccessToken() throws KeycloakException {
+    private ResponseEntity<TokenResponse> getTokenFromKeycloak (String username, String password) throws KeycloakException {
+
         RestTemplate restTemplate = new RestTemplate();
-        String tokenUrl = serverUrl + "/realms/" + realm + "/protocol/openid-connect/token";
+        String tokenUrl = getTokenUrlFromKeycloak();
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -36,14 +41,15 @@ public class KeycloakTokenProvider {
         MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
         map.add("grant_type", "password");
         map.add("client_id", clientId);
-        map.add("username", adminAppName);
-        map.add("password", adminAppPassword);
+        map.add("username", username);
+        map.add("password", password);
         map.add("client_secret", clientSecret);
+        map.add("scope", "openid");
 
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(map, headers);
 
-        ResponseEntity<TokenResponse> response;
+        ResponseEntity<TokenResponse> response = null;
         try {
             response = restTemplate.exchange(
                     tokenUrl,
@@ -51,9 +57,7 @@ public class KeycloakTokenProvider {
                     request,
                     TokenResponse.class
             );
-
-            return response.getBody() != null ? response.getBody().getAccessToken() : null;
-
+            return response;
         } catch (org.springframework.web.client.HttpClientErrorException e) {
             throw new KeycloakException("Failed to obtain Keycloak token. Status: " + e.getStatusCode()
                     + ", Response: " + e.getResponseBodyAsString(), e);
@@ -61,19 +65,25 @@ public class KeycloakTokenProvider {
             throw new KeycloakException("Failed to connect to Keycloak server: " + e.getMessage(), e);
         }
 
+
     }
 
-    private static class TokenResponse {
-        @JsonProperty("access_token")
-        private String access_token;
+    public String getAccessToken() throws KeycloakException {
+        ResponseEntity<TokenResponse> response  = getTokenFromKeycloak(adminAppName, adminAppPassword);
+        return response.getBody() != null ? response.getBody().getAccessToken() : null;
 
-        public String getAccessToken() {
-            return access_token;
+    }
+
+    public TokensUser getUserAccessToken(String username, String password, String token) throws KeycloakException {
+        ResponseEntity<TokenResponse> response  = getTokenFromKeycloak(username, password);
+
+        TokensUser tokensUser = new TokensUser();
+        if (response.getBody() != null) {
+            tokensUser.setAccessToken(response.getBody().getAccessToken());
+            tokensUser.setRefreshToken(response.getBody().getRefreshToken());
         }
 
-        public void setAccessToken(String access_token) {
-            this.access_token = access_token;
-        }
+        return tokensUser;
     }
 
 }

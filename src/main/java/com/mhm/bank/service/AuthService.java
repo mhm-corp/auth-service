@@ -1,9 +1,7 @@
 package com.mhm.bank.service;
 
 import com.mhm.bank.config.KeycloakTokenProvider;
-import com.mhm.bank.controller.dto.UserInformation;
-import com.mhm.bank.controller.dto.UserKCDto;
-import com.mhm.bank.controller.dto.UserRegisteredEvent;
+import com.mhm.bank.controller.dto.*;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.repository.UserRepository;
@@ -84,11 +82,13 @@ public class AuthService {
 
         UserKCDto userKCDto = new UserKCDto(
                 userInformation.username(),
-                userInformation.password() ,
+                userInformation.password(),
+                userInformation.firstName(),
+                userInformation.lastName(),
                 userInformation.email(),
                 roles
-
         );
+
         boolean success = keycloakService.createUser(userKCDto, "Bearer " + token);
         if (!success) {
             throw new KeycloakException(String.format("Failed to create user %s in Keycloak", userKCDto.username()));
@@ -162,5 +162,14 @@ public class AuthService {
 
     public List<UserRepresentation> findAllUsersByKeycloak() {
         return keycloakService.findAllUsers();
+    }
+
+    public TokensUser loginUser(LoginRequest loginRequest) throws KeycloakException {
+        String token = getTokenAuth();
+
+        TokensUser tokensUser = keycloakService.loginUser(loginRequest, token);
+
+        logger.info("{}]'s login was successful.", loginRequest.username());
+        return tokensUser;
     }
 }

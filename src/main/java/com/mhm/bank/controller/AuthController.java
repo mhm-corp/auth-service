@@ -1,5 +1,7 @@
 package com.mhm.bank.controller;
 
+import com.mhm.bank.controller.dto.LoginRequest;
+import com.mhm.bank.controller.dto.TokensUser;
 import com.mhm.bank.controller.dto.UserInformation;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
@@ -50,5 +52,12 @@ public class AuthController {
         return ResponseEntity.ok(authService.findAllUsersByKeycloak());
     }
 
+
+    @PostMapping("/login")
+    @Operation(summary = "Login a user")
+    public ResponseEntity<TokensUser> loginUser (@Valid @RequestBody LoginRequest loginRequest) throws KeycloakException {
+        TokensUser result = authService.loginUser(loginRequest);
+        return ResponseEntity.status(HttpStatus.CREATED).body(result);
+    }
 
 }
