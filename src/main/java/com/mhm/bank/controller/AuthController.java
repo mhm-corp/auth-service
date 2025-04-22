@@ -2,6 +2,7 @@ package com.mhm.bank.controller;
 
 import com.mhm.bank.controller.dto.LoginRequest;
 import com.mhm.bank.controller.dto.TokensUser;
+import com.mhm.bank.controller.dto.UserData;
 import com.mhm.bank.controller.dto.UserInformation;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
@@ -46,18 +47,23 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
-    @GetMapping ("/keycloak/search")
-    @PreAuthorize("hasRole('admin_client_role')")
-    public ResponseEntity<?> findAllUsersByKeycloak (){
-        return ResponseEntity.ok(authService.findAllUsersByKeycloak());
-    }
-
-
     @PostMapping("/login")
     @Operation(summary = "Login a user")
     public ResponseEntity<TokensUser> loginUser (@Valid @RequestBody LoginRequest loginRequest) throws KeycloakException {
         TokensUser result = authService.loginUser(loginRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
+    }
+
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('admin_client_role')")
+    @Operation(summary = "Get user information by username or email")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "User information retrieved successfully"),
+            @ApiResponse(responseCode = "404", description = "User not found")
+    })
+    public ResponseEntity<UserData> getUserInformation(@RequestParam("searchData") String searchData) throws KeycloakException {
+        UserData userInfo = authService.getUserInformation(searchData);
+        return userInfo != null ? ResponseEntity.ok(userInfo) : ResponseEntity.notFound().build();
     }
 
 }

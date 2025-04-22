@@ -2,6 +2,7 @@ package com.mhm.bank.service;
 
 import com.mhm.bank.config.KeycloakTokenProvider;
 import com.mhm.bank.controller.dto.*;
+import com.mhm.bank.controller.validators.EmailValidator;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.repository.UserRepository;
@@ -78,7 +79,9 @@ public class AuthService {
     }
 
     private void sendUserToKeycloak(UserInformation userInformation, String token) throws KeycloakException {
-        Set<String> roles = Set.of(kcUserRole);
+        Set<String> roles = (userInformation.roles() != null && !userInformation.roles().isEmpty())
+                ? userInformation.roles()
+                : Set.of(kcUserRole);
 
         UserKCDto userKCDto = new UserKCDto(
                 userInformation.username(),
@@ -160,8 +163,17 @@ public class AuthService {
         return userEntity;
     }
 
-    public List<UserRepresentation> findAllUsersByKeycloak() {
-        return keycloakService.findAllUsers();
+    private UserData getUserData(UserEntity userEntity) {
+        UserData userdata = new UserData();
+        userdata.setIdCard(userEntity.getId());
+        userdata.setUsername(userEntity.getUsername());
+        userdata.setFirstName(userEntity.getFirstName());
+        userdata.setLastName(userEntity.getLastName());
+        userdata.setAddress(userEntity.getAddress());
+        userdata.setEmail(userEntity.getEmail());
+        userdata.setBirthdate(userEntity.getBirthDate());
+        userdata.setPhoneNumber(userEntity.getPhoneNumber());
+        return userdata;
     }
 
     public TokensUser loginUser(LoginRequest loginRequest) throws KeycloakException {
@@ -172,4 +184,26 @@ public class AuthService {
         logger.info("{}]'s login was successful.", loginRequest.username());
         return tokensUser;
     }
+
+    public UserData getUserInformation(String searchData) throws KeycloakException {
+        UserEntity userEntity = EmailValidator.isItAValidEmailFormat(searchData) ? userRepository.findByEmail(searchData) : userRepository.findByUsername(searchData);
+
+        if (userEntity == null) return  null;
+
+        UserData userData = getUserData(userEntity);
+        userData.setRoles(getUserRoles(userEntity.getUsername()));
+
+        return userData;
+    }
+
+    private List<String> getUserRoles(String username) throws KeycloakException {
+        List<UserRepresentation> listRoles = keycloakService.getAllRoles(username);
+
+        return  listRoles.stream()
+                .map(user -> user.getAttributes().get("role"))
+                .filter(roleList -> roleList != null && !roleList.isEmpty())
+                .map(roleList -> roleList.get(0))
+                .toList();
+    }
+
 }

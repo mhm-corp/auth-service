@@ -11,10 +11,13 @@ import java.util.List;
 
 public interface IKeycloakService {
 
-    List<UserRepresentation> findAllUsers();
     boolean createUser(UserKCDto userDto, String authToken) throws KeycloakException;
 
     void deleteUser(String usernameAfterKC) throws KeycloakException;
 
     TokensUser loginUser(LoginRequest loginRequest, String token) throws KeycloakException;
+
+    List<UserRepresentation> getAllRoles(String username) throws KeycloakException;
+
+
 }

@@ -1,7 +1,6 @@
 package com.mhm.bank.controller.dto;
 
 
-
 import com.mhm.bank.controller.validators.Adult;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -9,6 +8,7 @@ import jakarta.validation.constraints.Size;
 import org.springframework.data.annotation.Id;
 
 import java.time.LocalDate;
+import java.util.Set;
 
 
 public record UserInformation (
@@ -28,6 +28,7 @@ public record UserInformation (
     @Adult
     LocalDate birthdate,
     @Size(max = 20, message = "The phone number is too long.")
-    String phoneNumber
+    String phoneNumber,
+    Set<String> roles
 
 ) {}
