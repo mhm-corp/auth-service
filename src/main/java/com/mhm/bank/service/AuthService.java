@@ -182,7 +182,7 @@ public class AuthService {
         return tokensUser;
     }
 
-    public UserData getUserInformation(String searchData) throws KeycloakException {
+    public UserData getUserInformation(String searchData)  {
         UserEntity userEntity = EmailValidator.isItAValidEmailFormat(searchData) ? userRepository.findByEmail(searchData) : userRepository.findByUsername(searchData);
 
         if (userEntity == null) return  null;

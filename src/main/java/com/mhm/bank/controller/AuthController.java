@@ -61,7 +61,7 @@ public class AuthController {
             @ApiResponse(responseCode = "200", description = "User information retrieved successfully"),
             @ApiResponse(responseCode = "404", description = "User not found")
     })
-    public ResponseEntity<UserData> getUserInformation(@RequestParam("searchData") String searchData) throws KeycloakException {
+    public ResponseEntity<UserData> getUserInformation(@RequestParam("searchData") String searchData)  {
         UserData userInfo = authService.getUserInformation(searchData);
         return userInfo != null ? ResponseEntity.ok(userInfo) : ResponseEntity.notFound().build();
     }
