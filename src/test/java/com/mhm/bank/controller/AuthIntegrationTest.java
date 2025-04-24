@@ -136,7 +136,8 @@ public class AuthIntegrationTest {
                 "123 Main St",
                 "john.doe@example.com",
                 LocalDate.parse("1990-01-01"),
-                "123456789"
+                "123456789",
+                null
         );
 
         mockMvc.perform(post("/api/auth/register")
@@ -170,7 +171,8 @@ public class AuthIntegrationTest {
                 "123 Main St",
                 "john.doe@example.com",
                 LocalDate.parse("1990-01-01"),
-                "123456789"
+                "123456789",
+                null
         );
 
         mockMvc.perform(post("/api/auth/register")
@@ -199,7 +201,8 @@ public class AuthIntegrationTest {
                 "123 Main St",
                 "john.doe@example.com",
                 LocalDate.parse("1990-01-01"),
-                "123456789"
+                "123456789",
+                null
         );
 
         mockMvc.perform(post("/api/auth/register")

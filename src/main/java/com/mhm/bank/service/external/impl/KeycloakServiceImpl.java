@@ -20,7 +20,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class KeycloakServiceImpl implements IKeycloakService {
@@ -159,36 +158,5 @@ public class KeycloakServiceImpl implements IKeycloakService {
          return keycloakTokenProvider.getUserAccessToken(loginRequest.username(), loginRequest.password(), token);
     }
 
-    @Override
-    public List<UserRepresentation> getAllRoles(String username) throws KeycloakException {
-        try {
-            UsersResource usersResource = keycloakProvider.getUserResource();
-            List<UserRepresentation> users = usersResource.searchByUsername(username, true);
-
-            if (users.isEmpty()) {
-                log.warn("User {} not found in Keycloak", username);
-                return List.of();
-            }
-
-            String userId = users.get(0).getId();
-            return keycloakProvider.getUserResource()
-                    .get(userId)
-                    .roles()
-                    .realmLevel()
-                    .listEffective()
-                    .stream()
-                    .map(role -> {
-                        UserRepresentation userRole = new UserRepresentation();
-                        userRole.setUsername(username);
-                        userRole.setAttributes(Map.of("role", List.of(role.getName())));
-                        return userRole;
-                    })
-                    .toList();
-
-        } catch (Exception e) {
-            log.error("Error getting roles for user {} from Keycloak: {}", username, e.getMessage());
-            throw new KeycloakException("Error getting roles from Keycloak: " + e.getMessage());
-        }
-    }
 
 }

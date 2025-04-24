@@ -20,7 +20,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -54,33 +55,6 @@ class KeycloakServiceImplTest {
     void setUp() {
         keycloakService = new KeycloakServiceImpl(keycloakProvider, keycloakTokenProvider);
         ReflectionTestUtils.setField(keycloakService, "kcUserRole", "user");
-    }
-
-    @Test
-    void findAllUsers_ShouldReturnUsersList() {
-        UserRepresentation user1 = new UserRepresentation();
-        user1.setUsername("user1");
-        user1.setEmail("user1@test.com");
-
-        UserRepresentation user2 = new UserRepresentation();
-        user2.setUsername("user2");
-        user2.setEmail("user2@test.com");
-
-        List<UserRepresentation> expectedUsers = Arrays.asList(user1, user2);
-
-        when(keycloakProvider.getRealmResouce()).thenReturn(realmResource);
-        when(realmResource.users()).thenReturn(usersResource);
-        when(usersResource.list()).thenReturn(expectedUsers);
-
-        List<UserRepresentation> actualUsers = keycloakService.findAllUsers();
-
-        assertNotNull(actualUsers);
-        assertEquals(2, actualUsers.size());
-        assertEquals(expectedUsers, actualUsers);
-
-        verify(keycloakProvider, times(1)).getRealmResouce();
-        verify(realmResource, times(1)).users();
-        verify(usersResource, times(1)).list();
     }
 
     @Test
@@ -176,10 +150,47 @@ class KeycloakServiceImplTest {
         assertEquals(errorMessage, exception.getMessage());
     }
 
-    private void setupMocksForSuccessfulUserCreation(URI location) throws Exception {
+    @Test
+    void createUser_ShouldAssignDefaultRole_WhenInvalidRolesProvided() throws Exception, KeycloakException {
+        Set<String> invalidRoles = new HashSet<>(Arrays.asList("invalid_role1", "invalid_role2"));
+        UserKCDto userDto = new UserKCDto("testUser", "password", "fname", "lname", "test@email.com", invalidRoles);
+        String authToken = "test-token";
+        URI location = new URI("/users/test-user-id");
+
+        setupMocksForSuccessfulUserCreation(location);
+        when(rolesResource.list()).thenReturn(Collections.emptyList());
+
+        RoleRepresentation defaultRole = new RoleRepresentation();
+        defaultRole.setName("user");
+        when(rolesResource.get("user").toRepresentation()).thenReturn(defaultRole);
+
+        boolean result = keycloakService.createUser(userDto, authToken);
+
+        assertTrue(result);
+        verify(roleScopeResource).add(argThat(roles ->
+                roles.size() == 1 && roles.get(0).getName().equals("user")));
+    }
+
+    @Test
+    void deleteUser_ShouldThrowException_WhenKeycloakFails() {
+        String username = "testUser";
+        UserRepresentation userRep = new UserRepresentation();
+        userRep.setId("userId");
+
+        when(keycloakProvider.getUserResource()).thenReturn(usersResource);
+        when(usersResource.searchByUsername(username, true))
+                .thenReturn(Collections.singletonList(userRep));
+        when(usersResource.get(anyString())).thenReturn(userResource);
+        doThrow(new RuntimeException("Keycloak error")).when(userResource).remove();
+
+        assertThrows(KeycloakException.class, () -> keycloakService.deleteUser(username));
+    }
+
+
+    private void setupMocksForSuccessfulUserCreation(URI location)  {
         when(keycloakProvider.getUserResource()).thenReturn(usersResource);
         when(keycloakProvider.getRealmResouce()).thenReturn(realmResource);
-        when(realmResource.users()).thenReturn(usersResource);  // Add this line
+        when(realmResource.users()).thenReturn(usersResource);
         when(usersResource.create(any(UserRepresentation.class))).thenReturn(response);
         when(response.getStatus()).thenReturn(201);
         when(response.getLocation()).thenReturn(location);
@@ -190,4 +201,5 @@ class KeycloakServiceImplTest {
         when(userResource.roles()).thenReturn(roleMappingResource);
         when(roleMappingResource.realmLevel()).thenReturn(roleScopeResource);
     }
+
 }

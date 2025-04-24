@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.mhm.bank.controller.dto.LoginRequest;
 import com.mhm.bank.controller.dto.TokensUser;
+import com.mhm.bank.controller.dto.UserData;
 import com.mhm.bank.controller.dto.UserInformation;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
@@ -12,7 +13,6 @@ import com.mhm.bank.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.keycloak.representations.idm.UserRepresentation;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -21,8 +21,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.KafkaException;
 
 import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -60,7 +58,8 @@ class AuthControllerTest {
                 "123 Main St",
                 "john@example.com",
                 LocalDate.of(1990, 1, 1),
-                "123456789"
+                "123456789",
+                null
         );
 
         when(authService.registerUser(any(UserInformation.class)))
@@ -84,7 +83,8 @@ class AuthControllerTest {
                 "123 Main St",
                 "john@example.com",
                 LocalDate.of(1990, 1, 1),
-                "123456789"
+                "123456789",
+                null
         );
 
         when(authService.registerUser(any(UserInformation.class)))
@@ -105,7 +105,8 @@ class AuthControllerTest {
                 "123 Main St",
                 "invalid.email",
                 LocalDate.of(1990, 1, 1),
-                "123456789"
+                "123456789",
+                null
         );
 
         when(authService.registerUser(any(UserInformation.class)))
@@ -127,6 +128,7 @@ class AuthControllerTest {
                 "john@example.com",
                 LocalDate.now().minusYears(17),
                 "123456789"
+                , null
         );
 
         when(authService.registerUser(any(UserInformation.class)))
@@ -147,7 +149,8 @@ class AuthControllerTest {
                 "456 Oak St",
                 "jane@example.com",
                 LocalDate.of(1992, 1, 1),
-                "987654321"
+                "987654321",
+                null
         );
 
         when(authService.registerUser(any(UserInformation.class)))
@@ -168,7 +171,8 @@ class AuthControllerTest {
                 "456 Oak St",
                 "jane@example.com",
                 LocalDate.of(1992, 1, 1),
-                "987654321"
+                "987654321",
+                null
         );
 
         when(authService.registerUser(any(UserInformation.class)))
@@ -189,7 +193,8 @@ class AuthControllerTest {
                 "123 Main St",
                 "john@example.com",
                 LocalDate.of(1990, 1, 1),
-                "123456789"
+                "123456789",
+                null
         );
 
         when(authService.registerUser(any(UserInformation.class)))
@@ -225,19 +230,56 @@ class AuthControllerTest {
     }
 
     @Test
-    void findAllUsersByKeycloak_shouldReturnUserList() {
-        List<UserRepresentation> expectedUsers = Arrays.asList(
-                new UserRepresentation(),
-                new UserRepresentation()
-        );
+    void getUserInformation_shouldReturnOk_whenUserFoundByUsername() throws KeycloakException {
+        String username = "testuser";
+        UserData expectedUserData = new UserData();
+        expectedUserData.setUsername(username);
 
-        when(authService.findAllUsersByKeycloak()).thenReturn(expectedUsers);
+        when(authService.getUserInformation(username)).thenReturn(expectedUserData);
 
-        ResponseEntity<?> response = authController.findAllUsersByKeycloak();
+        ResponseEntity<UserData> response = authController.getUserInformation(username);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(expectedUsers, response.getBody());
-        verify(authService).findAllUsersByKeycloak();
+        assertEquals(expectedUserData, response.getBody());
+        verify(authService).getUserInformation(username);
+    }
+
+    @Test
+    void getUserInformation_shouldReturnOk_whenUserFoundByEmail() throws KeycloakException {
+        String email = "test@example.com";
+        UserData expectedUserData = new UserData();
+        expectedUserData.setEmail(email);
+
+        when(authService.getUserInformation(email)).thenReturn(expectedUserData);
+
+        ResponseEntity<UserData> response = authController.getUserInformation(email);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(expectedUserData, response.getBody());
+        verify(authService).getUserInformation(email);
+    }
+
+    @Test
+    void getUserInformation_shouldReturnNotFound_whenUserDoesNotExist() throws KeycloakException {
+        String searchData = "nonexistent";
+
+        when(authService.getUserInformation(searchData)).thenReturn(null);
+
+        ResponseEntity<UserData> response = authController.getUserInformation(searchData);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        verify(authService).getUserInformation(searchData);
+    }
+
+    @Test
+    void getUserInformation_shouldThrowException_whenKeycloakFails() throws KeycloakException {
+        String searchData = "testuser";
+
+        when(authService.getUserInformation(searchData))
+                .thenThrow(new KeycloakException("Failed to retrieve user information"));
+
+        assertThrows(KeycloakException.class, () -> authController.getUserInformation(searchData));
+        verify(authService).getUserInformation(searchData);
     }
 
 }

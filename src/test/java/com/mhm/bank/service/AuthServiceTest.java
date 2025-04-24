@@ -1,10 +1,7 @@
 package com.mhm.bank.service;
 
 import com.mhm.bank.config.KeycloakTokenProvider;
-import com.mhm.bank.controller.dto.LoginRequest;
-import com.mhm.bank.controller.dto.TokensUser;
-import com.mhm.bank.controller.dto.UserInformation;
-import com.mhm.bank.controller.dto.UserRegisteredEvent;
+import com.mhm.bank.controller.dto.*;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.repository.UserRepository;
@@ -27,8 +24,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.LocalDate;
 import java.util.concurrent.CompletableFuture;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -60,7 +56,8 @@ class AuthServiceTest {
                 "123 Test St",
                 "test@example.com",
                 LocalDate.of(1990, 1, 1),
-                "1234567890"
+                "1234567890",
+                null
         );
 
         userEntity = new UserEntity();
@@ -113,10 +110,13 @@ class AuthServiceTest {
                 ));
 
         RecordMetadata recordMetadata = new RecordMetadata(
-                new TopicPartition("topic", 0),
-                0L, 0, 0, 0L, 0, 0
+                new TopicPartition("topic", 0), // topicPartition
+                0L,    // baseOffset
+                0,    // timestamp
+                0L,    // checksum
+                0,     // serializedKeySize
+                0      // serializedValueSize
         );
-
         SendResult<String, UserRegisteredEvent> sendResult = new SendResult<>(producerRecord, recordMetadata);
         when(kafkaProducerService.sendMessage(any(UserRegisteredEvent.class)))
                 .thenReturn(CompletableFuture.completedFuture(sendResult));
@@ -300,4 +300,55 @@ class AuthServiceTest {
         verify(keycloakService, never()).loginUser(any(), any());
     }
 
+    @Test
+    void shouldGetUserInformationByEmail() throws KeycloakException {
+        String email = "test@example.com";
+        when(userRepository.findByEmail(email)).thenReturn(userEntity);
+
+        UserData result = authService.getUserInformation(email);
+
+        assertNotNull(result);
+        assertEquals(userEntity.getId(), result.getIdCard());
+        assertEquals(userEntity.getEmail(), result.getEmail());
+        verify(userRepository).findByEmail(email);
+        verify(userRepository, never()).findByUsername(any());
+    }
+
+    @Test
+    void shouldGetUserInformationByUsername() throws KeycloakException {
+        String username = "testuser";
+        when(userRepository.findByUsername(username)).thenReturn(userEntity);
+
+        UserData result = authService.getUserInformation(username);
+
+        assertNotNull(result);
+        assertEquals(userEntity.getId(), result.getIdCard());
+        assertEquals(userEntity.getUsername(), result.getUsername());
+        verify(userRepository).findByUsername(username);
+        verify(userRepository, never()).findByEmail(any());
+    }
+
+    @Test
+    void shouldReturnNullWhenUserNotFound() throws KeycloakException {
+        String username = "nonexistent";
+        when(userRepository.findByUsername(username)).thenReturn(null);
+
+        UserData result = authService.getUserInformation(username);
+
+        assertNull(result);
+        verify(userRepository).findByUsername(username);
+    }
+
+    @Test
+    void shouldThrowExceptionWhenTokenIsNullDuringRegistration() throws KeycloakException {
+        when(tokenProvider.getAccessToken()).thenReturn(null);
+
+        KeycloakException exception = assertThrows(KeycloakException.class, () ->
+                authService.registerUser(userInformation)
+        );
+
+        assertEquals("Failed to obtain Keycloak token", exception.getMessage());
+        verify(tokenProvider).getAccessToken();
+        verify(userRepository, never()).existsById(any());
+    }
 }

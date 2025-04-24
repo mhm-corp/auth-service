@@ -1,7 +1,6 @@
 package com.mhm.bank.service.external;
 
 import com.mhm.bank.controller.dto.UserRegisteredEvent;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,7 +17,8 @@ public class KafkaProducerService {
     private static final Logger logger = LoggerFactory.getLogger(KafkaProducerService.class);
     @Value("${kafka.producer.service.timeout}")
     private int serviceTimeout;
-    private static final String TOPIC = "user-registered";
+    @Value("${spring.kafka.producer.topic.name}")
+    private String topic;
 
     private final KafkaTemplate<String, UserRegisteredEvent> kafkaTemplate;
 
@@ -31,7 +31,7 @@ public class KafkaProducerService {
             throw new IllegalArgumentException("Event or userId cannot be null");
         }
 
-        return kafkaTemplate.send(TOPIC, event.userId(), event)
+        return kafkaTemplate.send(topic, event.userId(), event)
                 .orTimeout(serviceTimeout, TimeUnit.SECONDS)
                 .exceptionally(throwable -> {
                     String errorMessage = String.format("Failed to send message for user %s: %s",

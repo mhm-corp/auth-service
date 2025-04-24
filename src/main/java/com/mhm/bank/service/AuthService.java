@@ -9,8 +9,6 @@ import com.mhm.bank.repository.UserRepository;
 import com.mhm.bank.repository.entity.UserEntity;
 import com.mhm.bank.service.external.IKeycloakService;
 import com.mhm.bank.service.external.KafkaProducerService;
-
-import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,7 +16,6 @@ import org.springframework.kafka.KafkaException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -70,7 +67,7 @@ public class AuthService {
             throw e;
         }
     }
-    String getTokenAuth() throws KeycloakException {
+    public String getTokenAuth() throws KeycloakException {
         String token = tokenProvider.getAccessToken();
         if (token == null) {
             throw new KeycloakException("Failed to obtain Keycloak token");
@@ -190,20 +187,7 @@ public class AuthService {
 
         if (userEntity == null) return  null;
 
-        UserData userData = getUserData(userEntity);
-        userData.setRoles(getUserRoles(userEntity.getUsername()));
-
-        return userData;
-    }
-
-    private List<String> getUserRoles(String username) throws KeycloakException {
-        List<UserRepresentation> listRoles = keycloakService.getAllRoles(username);
-
-        return  listRoles.stream()
-                .map(user -> user.getAttributes().get("role"))
-                .filter(roleList -> roleList != null && !roleList.isEmpty())
-                .map(roleList -> roleList.get(0))
-                .toList();
+        return getUserData(userEntity);
     }
 
 }
