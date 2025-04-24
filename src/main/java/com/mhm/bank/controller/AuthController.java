@@ -11,9 +11,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.KafkaException;
@@ -26,6 +29,8 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Authentication and Authorization API", description = "REST API related with user management")
 public class AuthController {
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
+    @Value("${server.at.maximun.expiration.time-seg}")
+    private int cookieMaxExpirationTimeSegonds;
     private final AuthService authService;
 
     public AuthController(AuthService authService) {
@@ -49,9 +54,28 @@ public class AuthController {
 
     @PostMapping("/login")
     @Operation(summary = "Login a user")
-    public ResponseEntity<TokensUser> loginUser (@Valid @RequestBody LoginRequest loginRequest) throws KeycloakException {
-        TokensUser result = authService.loginUser(loginRequest);
-        return ResponseEntity.status(HttpStatus.CREATED).body(result);
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Login successful"),
+            @ApiResponse(responseCode = "401", description = "Invalid credentials"),
+            @ApiResponse(responseCode = "400", description = "Bad request"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<Void> loginUser (@Valid @RequestBody LoginRequest loginRequest, HttpServletResponse response) throws KeycloakException {
+        TokensUser tokensUser = authService.loginUser(loginRequest);
+
+        if (tokensUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        Cookie cookie = new Cookie("accessToken", tokensUser.getAccessToken());
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(cookieMaxExpirationTimeSegonds);
+
+        response.addCookie(cookie);
+
+        return ResponseEntity.status(HttpStatus.OK).build();
     }
 
     @GetMapping("/me")

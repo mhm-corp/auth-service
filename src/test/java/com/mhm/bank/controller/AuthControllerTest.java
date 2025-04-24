@@ -10,6 +10,7 @@ import com.mhm.bank.controller.dto.UserInformation;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.service.AuthService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,8 +26,7 @@ import java.time.LocalDate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AuthControllerTest {
@@ -205,32 +205,70 @@ class AuthControllerTest {
     }
 
     @Test
-    void loginUser_shouldReturnCreated_whenLoginIsSuccessful() throws KeycloakException {
+    void registerUser_shouldThrowException_whenKeycloakFails() throws Exception, KeycloakException {
+        UserInformation userInfo = new UserInformation(
+                "12345678",
+                "testuser",
+                "Password123!",
+                "John",
+                "Doe",
+                "123 Main St",
+                "john@example.com",
+                LocalDate.of(1990, 1, 1),
+                "123456789",
+                null
+        );
+
+        when(authService.registerUser(any(UserInformation.class)))
+                .thenThrow(new KeycloakException("Failed to create user in Keycloak"));
+
+        assertThrows(KeycloakException.class, () -> authController.registerUser(userInfo));
+        verify(authService).registerUser(userInfo);
+    }
+
+    @Test
+    void loginUser_shouldReturnOk_whenLoginIsSuccessful() throws KeycloakException {
         LoginRequest loginRequest = new LoginRequest("testuser", "password123");
         TokensUser expectedTokens = new TokensUser("access-token-123", "refresh-token-456");
+        HttpServletResponse httpResponse = mock(HttpServletResponse.class);
 
         when(authService.loginUser(loginRequest)).thenReturn(expectedTokens);
 
-        ResponseEntity<TokensUser> response = authController.loginUser(loginRequest);
+        ResponseEntity<Void> response = authController.loginUser(loginRequest, httpResponse);
 
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertEquals(expectedTokens, response.getBody());
+        assertEquals(HttpStatus.OK, response.getStatusCode());
         verify(authService).loginUser(loginRequest);
+        verify(httpResponse).addCookie(any());
+    }
+
+    @Test
+    void loginUser_shouldReturnUnauthorized_whenCredentialsAreInvalid() throws KeycloakException {
+        LoginRequest loginRequest = new LoginRequest("testuser", "wrongpassword");
+        HttpServletResponse httpResponse = mock(HttpServletResponse.class);
+
+        when(authService.loginUser(loginRequest)).thenReturn(null);
+
+        ResponseEntity<Void> response = authController.loginUser(loginRequest, httpResponse);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        verify(authService).loginUser(loginRequest);
+        verify(httpResponse, never()).addCookie(any());
     }
 
     @Test
     void loginUser_shouldThrowException_whenKeycloakFails() throws KeycloakException {
         LoginRequest loginRequest = new LoginRequest("testuser", "password123");
+        HttpServletResponse response = mock(HttpServletResponse.class);
 
         when(authService.loginUser(loginRequest))
                 .thenThrow(new KeycloakException("Authentication failed"));
 
-        assertThrows(KeycloakException.class, () -> authController.loginUser(loginRequest));
+        assertThrows(KeycloakException.class, () -> authController.loginUser(loginRequest, response));
         verify(authService).loginUser(loginRequest);
     }
 
     @Test
-    void getUserInformation_shouldReturnOk_whenUserFoundByUsername() throws KeycloakException {
+    void getUserInformation_shouldReturnOk_whenUserFoundByUsername()  {
         String username = "testuser";
         UserData expectedUserData = new UserData();
         expectedUserData.setUsername(username);
@@ -245,7 +283,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void getUserInformation_shouldReturnOk_whenUserFoundByEmail() throws KeycloakException {
+    void getUserInformation_shouldReturnOk_whenUserFoundByEmail()  {
         String email = "test@example.com";
         UserData expectedUserData = new UserData();
         expectedUserData.setEmail(email);
@@ -260,7 +298,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void getUserInformation_shouldReturnNotFound_whenUserDoesNotExist() throws KeycloakException {
+    void getUserInformation_shouldReturnNotFound_whenUserDoesNotExist()  {
         String searchData = "nonexistent";
 
         when(authService.getUserInformation(searchData)).thenReturn(null);
@@ -268,17 +306,6 @@ class AuthControllerTest {
         ResponseEntity<UserData> response = authController.getUserInformation(searchData);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        verify(authService).getUserInformation(searchData);
-    }
-
-    @Test
-    void getUserInformation_shouldThrowException_whenKeycloakFails() throws KeycloakException {
-        String searchData = "testuser";
-
-        when(authService.getUserInformation(searchData))
-                .thenThrow(new KeycloakException("Failed to retrieve user information"));
-
-        assertThrows(KeycloakException.class, () -> authController.getUserInformation(searchData));
         verify(authService).getUserInformation(searchData);
     }
 
