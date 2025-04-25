@@ -53,9 +53,9 @@ class KafkaProducerServiceTest {
 
     @Test
     void sendMessage_Success() {
-        String topic = "test-topic";
+        String topic = "user-registered";
         UserRegisteredEvent event = createDataUserRegisteredEvent(false);
-        ReflectionTestUtils.setField(kafkaProducerService, "TOPIC", topic);
+        ReflectionTestUtils.setField(kafkaProducerService, "topic", topic);
 
         when(kafkaTemplate.send(topic, event.userId(), event))
                 .thenReturn(CompletableFuture.completedFuture(sendResult));
@@ -83,7 +83,7 @@ class KafkaProducerServiceTest {
     void sendMessage_KafkaFailure_VerifyErrorMessage() {
         String topic = "test-topic";
         UserRegisteredEvent event = createDataUserRegisteredEvent(false);
-        ReflectionTestUtils.setField(kafkaProducerService, "TOPIC", topic);
+        ReflectionTestUtils.setField(kafkaProducerService, "topic", topic);
         String errorMessage = "Kafka error";
 
         when(kafkaTemplate.send(topic, event.userId(), event))
@@ -105,7 +105,7 @@ class KafkaProducerServiceTest {
     void sendMessage_VerifyTopicAndKey() {
         String topic = "test-topic";
         UserRegisteredEvent event = createDataUserRegisteredEvent(false);
-        ReflectionTestUtils.setField(kafkaProducerService, "TOPIC", topic);
+        ReflectionTestUtils.setField(kafkaProducerService, "topic", topic);
 
         when(kafkaTemplate.send(topic, event.userId(), event))
                 .thenReturn(CompletableFuture.completedFuture(sendResult));
