@@ -31,7 +31,10 @@ public class AuthController {
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
     @Value("${server.at.maximun.expiration.time-seg}")
     private int cookieMaxExpirationTimeSegonds;
+    @Value("${cookie.secure}")
+    private boolean cookieSecure;
     private final AuthService authService;
+    private static final String NAME_TOKEN_IN_COOKIE = "accessToken";
 
     public AuthController(AuthService authService) {
         this.authService = authService;
@@ -67,9 +70,9 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        Cookie cookie = new Cookie("accessToken", tokensUser.getAccessToken());
+        Cookie cookie = new Cookie(NAME_TOKEN_IN_COOKIE, tokensUser.getAccessToken());
         cookie.setHttpOnly(true);
-        cookie.setSecure(true);
+        cookie.setSecure(cookieSecure);
         cookie.setPath("/");
         cookie.setMaxAge(cookieMaxExpirationTimeSegonds);
 
