@@ -45,7 +45,7 @@ public class AuthService {
     @Transactional
     public String registerUser(UserInformation userInformation) throws UserAlreadyExistsException, KeycloakException, KafkaException {
         String usernameAfterKC = null;
-        String token = getTokenAuth();
+        String token = getTokenAdminAppAuth();
         try {
             doesItExistInDataBase(userInformation);
             sendUserToKeycloak(userInformation, token);
@@ -67,7 +67,7 @@ public class AuthService {
             throw e;
         }
     }
-    public String getTokenAuth() throws KeycloakException {
+    public String getTokenAdminAppAuth() throws KeycloakException {
         String token = tokenProvider.getAccessToken();
         if (token == null) {
             throw new KeycloakException("Failed to obtain Keycloak token");
@@ -174,7 +174,7 @@ public class AuthService {
     }
 
     public TokensUser loginUser(LoginRequest loginRequest) throws KeycloakException {
-        String token = getTokenAuth();
+        String token = getTokenAdminAppAuth();
 
         TokensUser tokensUser = keycloakService.loginUser(loginRequest, token);
 

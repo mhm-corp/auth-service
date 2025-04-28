@@ -80,7 +80,7 @@ class AuthServiceTest {
         String expectedToken = "test-token";
         when(tokenProvider.getAccessToken()).thenReturn(expectedToken);
 
-        String result = authService.getTokenAuth();
+        String result = authService.getTokenAdminAppAuth();
         assertEquals(expectedToken, result);
 
         verify(tokenProvider).getAccessToken();
