@@ -12,7 +12,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -23,8 +22,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.KafkaException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Arrays;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -92,29 +89,11 @@ public class AuthController {
             @ApiResponse(responseCode = "404", description = "User not found")
     })
     public ResponseEntity<UserData> getUserInformation(
-            @RequestParam("searchData") String searchData,
-            HttpServletRequest request)  {
-
-        String accessToken = getTokenFromCookie(request);
-        if (accessToken == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
+            @RequestParam("searchData") String searchData)  {
         UserData userInfo = authService.getUserInformation(searchData);
         return userInfo != null ? ResponseEntity.ok(userInfo) : ResponseEntity.notFound().build();
     }
 
-    private String getTokenFromCookie (HttpServletRequest request){
-        Cookie[] cookies = request.getCookies();
-
-        if (cookies == null) return null;
-
-        return Arrays.stream(cookies)
-                .filter(cookie -> NAME_TOKEN_IN_COOKIE.equals(cookie.getName()))
-                .map(Cookie::getValue)
-                .findFirst()
-                .orElse(null);
-    }
 
 
 }
