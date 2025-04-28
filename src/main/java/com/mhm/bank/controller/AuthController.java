@@ -24,6 +24,8 @@ import org.springframework.kafka.KafkaException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
+
 @RestController
 @RequestMapping("/api/auth")
 
@@ -81,9 +83,9 @@ public class AuthController {
 
         return ResponseEntity.status(HttpStatus.OK).build();
     }
-/*
+
     @GetMapping("/me")
-    @PreAuthorize("hasRole('admin_client_role')")
+    @PreAuthorize("hasAnyRole('ROLE_admin_client_role', 'ROLE_admin_realm_role')")
     @Operation(summary = "Get user information by username or email")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "User information retrieved successfully"),
@@ -104,19 +106,15 @@ public class AuthController {
 
     private String getTokenFromCookie (HttpServletRequest request){
         Cookie[] cookies = request.getCookies();
-        String accessToken = null;
 
-        if (cookies != null) {
-            for (Cookie cookie : cookies) {
-                if (NAME_TOKEN_IN_COOKIE.equals(cookie.getName())) {
-                    accessToken = cookie.getValue();
-                    break;
-                }
-            }
-        }
+        if (cookies == null) return null;
 
-        return accessToken;
+        return Arrays.stream(cookies)
+                .filter(cookie -> NAME_TOKEN_IN_COOKIE.equals(cookie.getName()))
+                .map(Cookie::getValue)
+                .findFirst()
+                .orElse(null);
     }
 
- */
+
 }
