@@ -1,7 +1,6 @@
 package com.mhm.bank.config;
 
 import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
@@ -22,11 +21,14 @@ public class SecurityConfig {
     private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
 
     private JwtAuthenticationConvert jwtAuthenticationConvert;
+    private TokenValidator tokenValidator;
 
     private static final String NAME_TOKEN_IN_COOKIE = "accessToken";
 
-    public SecurityConfig(JwtAuthenticationConvert jwtAuthenticationConvert) {
+
+    public SecurityConfig(JwtAuthenticationConvert jwtAuthenticationConvert, TokenValidator tokenValidator) {
         this.jwtAuthenticationConvert = jwtAuthenticationConvert;
+        this.tokenValidator = tokenValidator;
     }
 
     @Bean
@@ -50,24 +52,26 @@ public class SecurityConfig {
 
     @Bean
     BearerTokenResolver bearerTokenResolver() {
-        return new BearerTokenResolver() {
-            @Override
-            public String resolve(HttpServletRequest request) {
-                Cookie[] cookies = request.getCookies();
-                if (cookies == null) {
-                    logger.debug("No cookies found");
-                    return null;
-                }
+        return request -> {
+            Cookie[] cookies = request.getCookies();
+            if (cookies == null) {
+                logger.debug("No cookies found");
+                return null;
+            }
 
-                String token = Arrays.stream(cookies)
-                        .filter(cookie -> NAME_TOKEN_IN_COOKIE.equals(cookie.getName()))
-                        .map(Cookie::getValue)
-                        .findFirst()
-                        .orElse(null);
+            String token = Arrays.stream(cookies)
+                    .filter(cookie -> NAME_TOKEN_IN_COOKIE.equals(cookie.getName()))
+                    .map(Cookie::getValue)
+                    .findFirst()
+                    .orElse(null);
 
+            if (token != null && tokenValidator.validateToken(token)) {
                 return token;
             }
+            logger.debug("Invalid token");
+            return null;
         };
     }
+
 
 }
