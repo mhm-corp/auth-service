@@ -91,15 +91,12 @@ class AuthServiceTest {
 
         verify(tokenProvider).getTokenAdminAppAuth();
     }
-/*
+
     @Test
     void shouldRegisterUserSuccessfully() throws UserAlreadyExistsException, KeycloakException, KafkaException {
         String mockToken = "test-token";
-        when(tokenProvider.getAccessToken()).thenReturn(mockToken);
-        when(userRepository.existsById(userInformation.idCard())).thenReturn(false);
-        when(userRepository.existsByUsername(userInformation.username())).thenReturn(false);
-        when(userRepository.existsByEmail(userInformation.email())).thenReturn(false);
-        when(userRepository.save(any(UserEntity.class))).thenReturn(userEntity);
+        when(tokenProvider.getTokenAdminAppAuth()).thenReturn(mockToken);
+        when(userDataAccessService.sendUserToDataBase(userInformation)).thenReturn(userEntity);
 
         UserKCDto expectedUserKC = new UserKCDto(
                 userInformation.username(),
@@ -110,7 +107,7 @@ class AuthServiceTest {
                 Set.of("user")
         );
 
-        doReturn(true).when(keycloakService).createUser(any(UserKCDto.class), eq("Bearer " + mockToken));
+        when(keycloakService.createUser(any(UserKCDto.class), eq("Bearer " + mockToken))).thenReturn(true);
 
         ProducerRecord<String, UserRegisteredEvent> producerRecord =
                 new ProducerRecord<>("topic", userInformation.username(), new UserRegisteredEvent(
@@ -137,11 +134,8 @@ class AuthServiceTest {
         String expectedResult = "User testuser with ID test-id-1 has been added";
         assertEquals(expectedResult, result);
 
-        verify(tokenProvider).getAccessToken();
-        verify(userRepository).existsById(userInformation.idCard());
-        verify(userRepository).existsByUsername(userInformation.username());
-        verify(userRepository).existsByEmail(userInformation.email());
-        verify(userRepository).save(any(UserEntity.class));
+        verify(tokenProvider).getTokenAdminAppAuth();
+        verify(userDataAccessService).sendUserToDataBase(userInformation);
         verify(keycloakService).createUser(argThat(userKC ->
                 userKC.username().equals(expectedUserKC.username()) &&
                         userKC.password().equals(expectedUserKC.password()) &&
@@ -154,119 +148,98 @@ class AuthServiceTest {
     }
 
     @Test
-    void shouldThrowExceptionWhenUserIdAlreadyExists() throws KeycloakException {
+    void shouldThrowExceptionWhenUserIdAlreadyExists() throws KeycloakException, UserAlreadyExistsException {
         String mockToken = "test-token";
-        when(tokenProvider.getAccessToken()).thenReturn(mockToken);
-        when(userRepository.existsById(userInformation.idCard())).thenReturn(true);
+        when(tokenProvider.getTokenAdminAppAuth()).thenReturn(mockToken);
+        doThrow(new UserAlreadyExistsException("User with ID " + userInformation.idCard() + " already exists"))
+                .when(userDataAccessService).doesUserExistInDataBase(userInformation);
 
-        UserAlreadyExistsException exception = assertThrows(UserAlreadyExistsException.class, () -> {
-            authService.registerUser(userInformation);
-        });
+        UserAlreadyExistsException exception = assertThrows(UserAlreadyExistsException.class, () ->
+                authService.registerUser(userInformation));
 
         assertEquals("User with ID " + userInformation.idCard() + " already exists", exception.getMessage());
 
-        verify(tokenProvider).getAccessToken();
-        verify(userRepository).existsById(userInformation.idCard());
-        verify(userRepository, never()).existsByUsername(anyString());
-        verify(userRepository, never()).existsByEmail(anyString());
-        verify(userRepository, never()).save(any(UserEntity.class));
+        verify(tokenProvider).getTokenAdminAppAuth();
+        verify(userDataAccessService).doesUserExistInDataBase(userInformation);
         verify(keycloakService, never()).createUser(any(), anyString());
-        verify(kafkaProducerService, never()).sendMessage(any(UserRegisteredEvent.class));
+        verify(userDataAccessService, never()).sendUserToDataBase(any());
+        verify(kafkaProducerService, never()).sendMessage(any());
     }
 
     @Test
-    void shouldThrowExceptionWhenUsernameAlreadyExists() throws KeycloakException {
+    void shouldThrowExceptionWhenUsernameAlreadyExists() throws KeycloakException, UserAlreadyExistsException {
         String mockToken = "test-token";
-        when(tokenProvider.getAccessToken()).thenReturn(mockToken);
-        when(userRepository.existsById(userInformation.idCard())).thenReturn(false);
-        when(userRepository.existsByUsername(userInformation.username())).thenReturn(true);
+        when(tokenProvider.getTokenAdminAppAuth()).thenReturn(mockToken);
+        doThrow(new UserAlreadyExistsException("Username " + userInformation.username() + " is already taken"))
+                .when(userDataAccessService).doesUserExistInDataBase(userInformation);
 
-        UserAlreadyExistsException exception = assertThrows(UserAlreadyExistsException.class, () -> {
-            authService.registerUser(userInformation);
-        });
+        UserAlreadyExistsException exception = assertThrows(UserAlreadyExistsException.class, () ->
+                authService.registerUser(userInformation));
 
         assertEquals("Username " + userInformation.username() + " is already taken", exception.getMessage());
 
-        verify(tokenProvider).getAccessToken();
-        verify(userRepository).existsById(userInformation.idCard());
-        verify(userRepository).existsByUsername(userInformation.username());
-        verify(userRepository, never()).existsByEmail(anyString());
-        verify(userRepository, never()).save(any(UserEntity.class));
+        verify(tokenProvider).getTokenAdminAppAuth();
+        verify(userDataAccessService).doesUserExistInDataBase(userInformation);
         verify(keycloakService, never()).createUser(any(), anyString());
-        verify(kafkaProducerService, never()).sendMessage(any(UserRegisteredEvent.class));
+        verify(userDataAccessService, never()).sendUserToDataBase(any());
+        verify(kafkaProducerService, never()).sendMessage(any());
     }
 
     @Test
-    void shouldThrowExceptionWhenEmailAlreadyExists() throws KeycloakException {
+    void shouldThrowExceptionWhenEmailAlreadyExists() throws KeycloakException, UserAlreadyExistsException {
         String mockToken = "test-token";
-        when(tokenProvider.getAccessToken()).thenReturn(mockToken);
-        when(userRepository.existsById(userInformation.idCard())).thenReturn(false);
-        when(userRepository.existsByUsername(userInformation.username())).thenReturn(false);
-        when(userRepository.existsByEmail(userInformation.email())).thenReturn(true);
+        when(tokenProvider.getTokenAdminAppAuth()).thenReturn(mockToken);
+        doThrow(new UserAlreadyExistsException("Email " + userInformation.email() + " is already taken"))
+                .when(userDataAccessService).doesUserExistInDataBase(userInformation);
 
-        UserAlreadyExistsException exception = assertThrows(UserAlreadyExistsException.class, () -> {
-            authService.registerUser(userInformation);
-        });
+        UserAlreadyExistsException exception = assertThrows(UserAlreadyExistsException.class, () ->
+                authService.registerUser(userInformation));
 
         assertEquals("Email " + userInformation.email() + " is already taken", exception.getMessage());
 
-        verify(tokenProvider).getAccessToken();
-        verify(userRepository).existsById(userInformation.idCard());
-        verify(userRepository).existsByUsername(userInformation.username());
-        verify(userRepository).existsByEmail(userInformation.email());
-        verify(userRepository, never()).save(any(UserEntity.class));
+        verify(tokenProvider).getTokenAdminAppAuth();
+        verify(userDataAccessService).doesUserExistInDataBase(userInformation);
         verify(keycloakService, never()).createUser(any(), anyString());
-        verify(kafkaProducerService, never()).sendMessage(any(UserRegisteredEvent.class));
+        verify(userDataAccessService, never()).sendUserToDataBase(any());
+        verify(kafkaProducerService, never()).sendMessage(any());
     }
 
     @Test
-    void shouldThrowExceptionWhenKeycloakFails() throws KeycloakException {
+    void shouldThrowExceptionWhenKeycloakFails() throws KeycloakException, UserAlreadyExistsException {
         String mockToken = "test-token";
-        when(tokenProvider.getAccessToken()).thenReturn(mockToken);
-        when(userRepository.existsById(userInformation.idCard())).thenReturn(false);
-        when(userRepository.existsByUsername(userInformation.username())).thenReturn(false);
-        when(userRepository.existsByEmail(userInformation.email())).thenReturn(false);
+        when(tokenProvider.getTokenAdminAppAuth()).thenReturn(mockToken);
+        doNothing().when(userDataAccessService).doesUserExistInDataBase(userInformation);
         when(keycloakService.createUser(any(), eq("Bearer " + mockToken))).thenReturn(false);
 
-        KeycloakException exception = assertThrows(KeycloakException.class, () -> {
-            authService.registerUser(userInformation);
-        });
+        KeycloakException exception = assertThrows(KeycloakException.class, () ->
+                authService.registerUser(userInformation));
 
         assertEquals("Failed to create user " + userInformation.username() + " in Keycloak", exception.getMessage());
 
-        verify(tokenProvider).getAccessToken();
-        verify(userRepository).existsById(userInformation.idCard());
-        verify(userRepository).existsByUsername(userInformation.username());
-        verify(userRepository).existsByEmail(userInformation.email());
+        verify(tokenProvider).getTokenAdminAppAuth();
+        verify(userDataAccessService).doesUserExistInDataBase(userInformation);
         verify(keycloakService).createUser(any(), eq("Bearer " + mockToken));
-        verify(userRepository, never()).save(any(UserEntity.class));
-        verify(kafkaProducerService, never()).sendMessage(any(UserRegisteredEvent.class));
+        verify(userDataAccessService, never()).sendUserToDataBase(any());
+        verify(kafkaProducerService, never()).sendMessage(any());
     }
 
     @Test
     void shouldThrowExceptionAndRollbackWhenKafkaFails() throws KeycloakException {
         String mockToken = "test-token";
-        when(tokenProvider.getAccessToken()).thenReturn(mockToken);
-        when(userRepository.existsById(userInformation.idCard())).thenReturn(false);
-        when(userRepository.existsByUsername(userInformation.username())).thenReturn(false);
-        when(userRepository.existsByEmail(userInformation.email())).thenReturn(false);
+        when(tokenProvider.getTokenAdminAppAuth()).thenReturn(mockToken);
+        when(userDataAccessService.sendUserToDataBase(userInformation)).thenReturn(userEntity);
         when(keycloakService.createUser(any(), eq("Bearer " + mockToken))).thenReturn(true);
-        when(userRepository.save(any(UserEntity.class))).thenReturn(userEntity);
         when(kafkaProducerService.sendMessage(any()))
-                .thenReturn(CompletableFuture.failedFuture(new org.springframework.kafka.KafkaException("Failed to send message")));
+                .thenReturn(CompletableFuture.failedFuture(new KafkaException("Failed to send message")));
 
-        org.springframework.kafka.KafkaException exception = assertThrows(org.springframework.kafka.KafkaException.class, () -> {
-            authService.registerUser(userInformation);
-        });
+        KafkaException exception = assertThrows(KafkaException.class, () ->
+                authService.registerUser(userInformation));
 
         assertEquals("Failed to send Kafka message for user: " + userInformation.username(), exception.getMessage());
 
-        verify(tokenProvider).getAccessToken();
-        verify(userRepository).existsById(userInformation.idCard());
-        verify(userRepository).existsByUsername(userInformation.username());
-        verify(userRepository).existsByEmail(userInformation.email());
+        verify(tokenProvider).getTokenAdminAppAuth();
+        verify(userDataAccessService).sendUserToDataBase(userInformation);
         verify(keycloakService).createUser(any(), eq("Bearer " + mockToken));
-        verify(userRepository).save(any(UserEntity.class));
         verify(keycloakService).deleteUser(userInformation.username());
     }
 
@@ -276,14 +249,14 @@ class AuthServiceTest {
         LoginRequest loginRequest = new LoginRequest("testuser", "password123");
         TokensUser expectedTokens = new TokensUser("access-token-123", "refresh-token-456");
 
-        when(tokenProvider.getAccessToken()).thenReturn(mockToken);
+        when(tokenProvider.getTokenAdminAppAuth()).thenReturn(mockToken);
         when(keycloakService.loginUser(loginRequest, mockToken)).thenReturn(expectedTokens);
 
         TokensUser result = authService.loginUser(loginRequest);
 
         assertEquals(expectedTokens.getAccessToken(), result.getAccessToken());
         assertEquals(expectedTokens.getRefreshToken(), result.getRefreshToken());
-        verify(tokenProvider).getAccessToken();
+        verify(tokenProvider).getTokenAdminAppAuth();
         verify(keycloakService).loginUser(loginRequest, mockToken);
     }
 
@@ -293,7 +266,7 @@ class AuthServiceTest {
         LoginRequest loginRequest = new LoginRequest("testuser", "password123");
         String errorMessage = "Authentication failed";
 
-        when(tokenProvider.getAccessToken()).thenReturn(mockToken);
+        when(tokenProvider.getTokenAdminAppAuth()).thenReturn(mockToken);
         when(keycloakService.loginUser(loginRequest, mockToken))
                 .thenThrow(new KeycloakException(errorMessage));
 
@@ -301,74 +274,77 @@ class AuthServiceTest {
                 authService.loginUser(loginRequest));
 
         assertEquals(errorMessage, exception.getMessage());
-        verify(tokenProvider).getAccessToken();
+        verify(tokenProvider).getTokenAdminAppAuth();
         verify(keycloakService).loginUser(loginRequest, mockToken);
-    }
-
-    @Test
-    void shouldThrowExceptionWhenTokenNotAvailable() throws KeycloakException {
-        LoginRequest loginRequest = new LoginRequest("testuser", "password123");
-        when(tokenProvider.getAccessToken()).thenReturn(null);
-
-        KeycloakException exception = assertThrows(KeycloakException.class, () ->
-                authService.loginUser(loginRequest));
-
-        assertEquals("Failed to obtain Keycloak token", exception.getMessage());
-        verify(tokenProvider).getAccessToken();
-        verify(keycloakService, never()).loginUser(any(), any());
     }
 
     @Test
     void shouldGetUserInformationByEmail() throws KeycloakException {
         String email = "test@example.com";
-        when(userRepository.findByEmail(email)).thenReturn(userEntity);
+        when(userDataAccessService.getUserInfo(email)).thenReturn(new UserData(
+                userEntity.getId(),
+                userEntity.getUsername(),
+                userEntity.getFirstName(),
+                userEntity.getLastName(),
+                userEntity.getAddress(),
+                userEntity.getEmail(),
+                userEntity.getBirthDate(),
+                userEntity.getPhoneNumber()
+        ));
 
         UserData result = authService.getUserInformation(email);
 
         assertNotNull(result);
         assertEquals(userEntity.getId(), result.getIdCard());
         assertEquals(userEntity.getEmail(), result.getEmail());
-        verify(userRepository).findByEmail(email);
-        verify(userRepository, never()).findByUsername(any());
+        verify(userDataAccessService).getUserInfo(email);
     }
 
     @Test
     void shouldGetUserInformationByUsername() throws KeycloakException {
         String username = "testuser";
-        when(userRepository.findByUsername(username)).thenReturn(userEntity);
+        when(userDataAccessService.getUserInfo(username)).thenReturn(new UserData(
+                userEntity.getId(),
+                userEntity.getUsername(),
+                userEntity.getFirstName(),
+                userEntity.getLastName(),
+                userEntity.getAddress(),
+                userEntity.getEmail(),
+                userEntity.getBirthDate(),
+                userEntity.getPhoneNumber()
+        ));
 
         UserData result = authService.getUserInformation(username);
 
         assertNotNull(result);
         assertEquals(userEntity.getId(), result.getIdCard());
         assertEquals(userEntity.getUsername(), result.getUsername());
-        verify(userRepository).findByUsername(username);
-        verify(userRepository, never()).findByEmail(any());
+        verify(userDataAccessService).getUserInfo(username);
     }
-
     @Test
     void shouldReturnNullWhenUserNotFound() throws KeycloakException {
         String username = "nonexistent";
-        when(userRepository.findByUsername(username)).thenReturn(null);
+        when(userDataAccessService.getUserInfo(username)).thenReturn(null);
 
         UserData result = authService.getUserInformation(username);
 
         assertNull(result);
-        verify(userRepository).findByUsername(username);
+        verify(userDataAccessService).getUserInfo(username);
     }
 
     @Test
     void shouldThrowExceptionWhenTokenIsNullDuringRegistration() throws KeycloakException {
-        when(tokenProvider.getAccessToken()).thenReturn(null);
+        when(tokenProvider.getTokenAdminAppAuth())
+                .thenThrow(new KeycloakException("Failed to obtain Keycloak token"));
 
         KeycloakException exception = assertThrows(KeycloakException.class, () ->
                 authService.registerUser(userInformation)
         );
 
         assertEquals("Failed to obtain Keycloak token", exception.getMessage());
-        verify(tokenProvider).getAccessToken();
+        verify(tokenProvider).getTokenAdminAppAuth();
         verify(userRepository, never()).existsById(any());
     }
 
- */
+
 }

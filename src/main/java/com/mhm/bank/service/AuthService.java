@@ -44,8 +44,8 @@ public class AuthService {
     @Transactional
     public String registerUser(UserInformation userInformation) throws UserAlreadyExistsException, KeycloakException, KafkaException {
         String usernameAfterKC = userInformation.username();
-        String token = tokenService.getTokenAdminAppAuth();
         try {
+            String token = tokenService.getTokenAdminAppAuth();
             userDataAccessService.doesUserExistInDataBase(userInformation);
             sendUserToKeycloak(userInformation, token);
             UserEntity userEntity = userDataAccessService.sendUserToDataBase(userInformation);

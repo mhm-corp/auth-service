@@ -1,4 +1,4 @@
-package com.mhm.bank.service.external.impl;
+package com.mhm.bank.service.external.keycloak.impl;
 
 import com.mhm.bank.config.KeycloakProvider;
 import com.mhm.bank.config.TokenProvider;
@@ -109,7 +109,7 @@ class KeycloakServiceImplTest {
 
         assertDoesNotThrow(() -> keycloakService.deleteUser(username));
     }
-/*
+
     @Test
     void loginUser_ShouldReturnTokensSuccessfully() throws KeycloakException {
         LoginRequest loginRequest = new LoginRequest("testUser", "password");
@@ -118,8 +118,7 @@ class KeycloakServiceImplTest {
 
         when(tokenProvider.getUserAccessToken(
                 loginRequest.username(),
-                loginRequest.password(),
-                token
+                loginRequest.password()
         )).thenReturn(expectedTokens);
 
         TokensUser result = keycloakService.loginUser(loginRequest, token);
@@ -129,8 +128,7 @@ class KeycloakServiceImplTest {
         assertEquals(expectedTokens.getRefreshToken(), result.getRefreshToken());
         verify(tokenProvider).getUserAccessToken(
                 loginRequest.username(),
-                loginRequest.password(),
-                token
+                loginRequest.password()
         );
     }
 
@@ -143,15 +141,16 @@ class KeycloakServiceImplTest {
 
         when(tokenProvider.getUserAccessToken(
                 loginRequest.username(),
-                loginRequest.password(),
-                token
+                loginRequest.password()
         )).thenThrow(new KeycloakException(errorMessage));
 
         KeycloakException exception = assertThrows(KeycloakException.class,
                 () -> keycloakService.loginUser(loginRequest, token));
+
         assertEquals(errorMessage, exception.getMessage());
+        verify(tokenProvider).getUserAccessToken(loginRequest.username(), loginRequest.password());
     }
- */
+
     @Test
     void createUser_ShouldAssignDefaultRole_WhenInvalidRolesProvided() throws Exception, KeycloakException {
         Set<String> invalidRoles = new HashSet<>(Arrays.asList("invalid_role1", "invalid_role2"));
