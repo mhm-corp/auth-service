@@ -1,4 +1,4 @@
-package com.mhm.bank.service.external;
+package com.mhm.bank.service.external.keycloak;
 
 
 import com.mhm.bank.controller.dto.LoginRequest;

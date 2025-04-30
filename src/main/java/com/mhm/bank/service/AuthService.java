@@ -1,14 +1,12 @@
 package com.mhm.bank.service;
 
-import com.mhm.bank.config.KeycloakTokenProvider;
+import com.mhm.bank.config.TokenProvider;
 import com.mhm.bank.controller.dto.*;
-import com.mhm.bank.controller.validators.EmailValidator;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
-import com.mhm.bank.repository.UserRepository;
 import com.mhm.bank.repository.entity.UserEntity;
-import com.mhm.bank.service.external.IKeycloakService;
 import com.mhm.bank.service.external.KafkaProducerService;
+import com.mhm.bank.service.external.keycloak.IKeycloakService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,27 +28,27 @@ public class AuthService {
     private String kcUserRole;
 
 
-    private final UserRepository userRepository;
     private final KafkaProducerService kafkaProducerService;
     private final IKeycloakService keycloakService;
-    private final KeycloakTokenProvider tokenProvider;
+    private final UserDataAccessService userDataAccessService;
+    private final TokenProvider tokenService;
 
-    public AuthService(UserRepository userRepository, KafkaProducerService kafkaProducerService, IKeycloakService keycloakService, KeycloakTokenProvider tokenProvider) {
-        this.userRepository = userRepository;
+
+    public AuthService(KafkaProducerService kafkaProducerService, IKeycloakService keycloakService, UserDataAccessService userDataAccessService, TokenProvider tokenService) {
         this.kafkaProducerService = kafkaProducerService;
         this.keycloakService = keycloakService;
-        this.tokenProvider = tokenProvider;
+        this.userDataAccessService = userDataAccessService;
+        this.tokenService = tokenService;
     }
 
     @Transactional
     public String registerUser(UserInformation userInformation) throws UserAlreadyExistsException, KeycloakException, KafkaException {
-        String usernameAfterKC = null;
-        String token = getTokenAdminAppAuth();
+        String usernameAfterKC = userInformation.username();
+        String token = tokenService.getTokenAdminAppAuth();
         try {
-            doesItExistInDataBase(userInformation);
+            userDataAccessService.doesUserExistInDataBase(userInformation);
             sendUserToKeycloak(userInformation, token);
-            usernameAfterKC = userInformation.username();
-            UserEntity userEntity = sendUserToDataBase(userInformation);
+            UserEntity userEntity = userDataAccessService.sendUserToDataBase(userInformation);
             sendEventToKafka(userInformation);
 
             logger.info("User {} successfully registered with ID: {}", userInformation.username(), userEntity.getId());
@@ -66,13 +64,6 @@ public class AuthService {
             }
             throw e;
         }
-    }
-    public String getTokenAdminAppAuth() throws KeycloakException {
-        String token = tokenProvider.getAccessToken();
-        if (token == null) {
-            throw new KeycloakException("Failed to obtain Keycloak token");
-        }
-        return token;
     }
 
     private void sendUserToKeycloak(UserInformation userInformation, String token) throws KeycloakException {
@@ -121,60 +112,8 @@ public class AuthService {
         }
     }
 
-    private UserEntity sendUserToDataBase(UserInformation userInformation) {
-        UserEntity userEntity = getUserEntity(userInformation);
-        userRepository.save(userEntity);
-        return userEntity;
-    }
-
-    private void doesItExistInDataBase(UserInformation userInformation) throws UserAlreadyExistsException {
-        String id = userInformation.idCard();
-        if (userRepository.existsById(id)) {
-            logger.error("User with ID {} already exists", id);
-            throw new UserAlreadyExistsException("User with ID "+id+" already exists");
-        }
-
-        String username = userInformation.username();
-        if (userRepository.existsByUsername(username)) {
-            logger.error("Username {} is already taken", username);
-            throw new UserAlreadyExistsException("Username "+username+" is already taken");
-        }
-
-        String email = userInformation.email();
-        if (userRepository.existsByEmail(email)) {
-            logger.error("Email {} is already taken", email);
-            throw new UserAlreadyExistsException("Email "+email+" is already taken");
-        }
-    }
-
-    private UserEntity getUserEntity(UserInformation userInformation) {
-        UserEntity userEntity = new UserEntity();
-        userEntity.setId(userInformation.idCard());
-        userEntity.setUsername(userInformation.username());
-        userEntity.setFirstName(userInformation.firstName());
-        userEntity.setLastName(userInformation.lastName());
-        userEntity.setEmail(userInformation.email());
-        userEntity.setAddress(userInformation.address());
-        userEntity.setPhoneNumber(userInformation.phoneNumber());
-        userEntity.setBirthDate(userInformation.birthdate());
-        return userEntity;
-    }
-
-    private UserData getUserData(UserEntity userEntity) {
-        UserData userdata = new UserData();
-        userdata.setIdCard(userEntity.getId());
-        userdata.setUsername(userEntity.getUsername());
-        userdata.setFirstName(userEntity.getFirstName());
-        userdata.setLastName(userEntity.getLastName());
-        userdata.setAddress(userEntity.getAddress());
-        userdata.setEmail(userEntity.getEmail());
-        userdata.setBirthdate(userEntity.getBirthDate());
-        userdata.setPhoneNumber(userEntity.getPhoneNumber());
-        return userdata;
-    }
-
     public TokensUser loginUser(LoginRequest loginRequest) throws KeycloakException {
-        String token = getTokenAdminAppAuth();
+        String token = tokenService.getTokenAdminAppAuth();
 
         TokensUser tokensUser = keycloakService.loginUser(loginRequest, token);
 
@@ -183,11 +122,7 @@ public class AuthService {
     }
 
     public UserData getUserInformation(String searchData)  {
-        UserEntity userEntity = EmailValidator.isItAValidEmailFormat(searchData) ? userRepository.findByEmail(searchData) : userRepository.findByUsername(searchData);
-
-        if (userEntity == null) return  null;
-
-        return getUserData(userEntity);
+        return userDataAccessService.getUserInfo(searchData);
     }
 
     public String refreshToken(String tokenRefreshRequest) {

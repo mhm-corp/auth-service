@@ -20,14 +20,14 @@ import java.util.Arrays;
 public class SecurityConfig {
     private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
     private JwtAuthentication jwtAuthentication;
-    private TokenValidator tokenValidator;
+    private TokenProvider tokenProvider;
 
     private static final String NAME_TOKEN_IN_COOKIE = "accessToken";
 
 
-    public SecurityConfig(JwtAuthentication jwtAuthentication, TokenValidator tokenValidator) {
+    public SecurityConfig(JwtAuthentication jwtAuthentication, TokenProvider tokenProvider) {
         this.jwtAuthentication = jwtAuthentication;
-        this.tokenValidator = tokenValidator;
+        this.tokenProvider = tokenProvider;
     }
 
     @Bean
@@ -64,7 +64,7 @@ public class SecurityConfig {
                     .findFirst()
                     .orElse(null);
 
-            if (token != null && tokenValidator.validateToken(token)) {
+            if (token != null && tokenProvider.validateToken(token)) {
                 return token;
             }
             logger.debug("Invalid token");

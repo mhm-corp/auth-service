@@ -1,11 +1,12 @@
 package com.mhm.bank.service.external.impl;
 
 import com.mhm.bank.config.KeycloakProvider;
-import com.mhm.bank.config.KeycloakTokenProvider;
+import com.mhm.bank.config.TokenProvider;
 import com.mhm.bank.controller.dto.LoginRequest;
 import com.mhm.bank.controller.dto.TokensUser;
 import com.mhm.bank.controller.dto.UserKCDto;
 import com.mhm.bank.exception.KeycloakException;
+import com.mhm.bank.service.external.keycloak.impl.KeycloakServiceImpl;
 import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,11 +50,11 @@ class KeycloakServiceImplTest {
 
     private KeycloakServiceImpl keycloakService;
     @Mock
-    private KeycloakTokenProvider keycloakTokenProvider;
+    private TokenProvider tokenProvider;
 
     @BeforeEach
     void setUp() {
-        keycloakService = new KeycloakServiceImpl(keycloakProvider, keycloakTokenProvider);
+        keycloakService = new KeycloakServiceImpl(keycloakProvider, tokenProvider);
         ReflectionTestUtils.setField(keycloakService, "kcUserRole", "user");
     }
 
@@ -115,7 +116,7 @@ class KeycloakServiceImplTest {
         String token = "test-token";
         TokensUser expectedTokens = new TokensUser("access-token-123", "refresh-token-456");
 
-        when(keycloakTokenProvider.getUserAccessToken(
+        when(tokenProvider.getUserAccessToken(
                 loginRequest.username(),
                 loginRequest.password(),
                 token
@@ -126,7 +127,7 @@ class KeycloakServiceImplTest {
         assertNotNull(result);
         assertEquals(expectedTokens.getAccessToken(), result.getAccessToken());
         assertEquals(expectedTokens.getRefreshToken(), result.getRefreshToken());
-        verify(keycloakTokenProvider).getUserAccessToken(
+        verify(tokenProvider).getUserAccessToken(
                 loginRequest.username(),
                 loginRequest.password(),
                 token
@@ -139,7 +140,7 @@ class KeycloakServiceImplTest {
         String token = "test-token";
         String errorMessage = "Authentication failed";
 
-        when(keycloakTokenProvider.getUserAccessToken(
+        when(tokenProvider.getUserAccessToken(
                 loginRequest.username(),
                 loginRequest.password(),
                 token
