@@ -20,7 +20,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.KafkaException;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -29,8 +28,8 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Authentication and Authorization API", description = "REST API related with user management")
 public class AuthController {
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
-    @Value("${server.at.maximun.expiration.time-seg}")
-    private int cookieMaxExpirationTimeSegonds;
+    @Value("${server.at.maximun.expiration.time-sec}")
+    private int cookieMaxExpirationTimeSeconds;
     @Value("${cookie.secure}")
     private boolean cookieSecure;
     private final AuthService authService;
@@ -74,7 +73,7 @@ public class AuthController {
         cookie.setHttpOnly(true);
         cookie.setSecure(cookieSecure);
         cookie.setPath("/");
-        cookie.setMaxAge(cookieMaxExpirationTimeSegonds);
+        cookie.setMaxAge(cookieMaxExpirationTimeSeconds);
 
         response.addCookie(cookie);
 
@@ -82,7 +81,6 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    @PreAuthorize("hasAnyRole('ROLE_admin_client_role', 'ROLE_admin_realm_role')")
     @Operation(summary = "Get user information by username or email")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "User information retrieved successfully"),
