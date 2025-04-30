@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
-@PreAuthorize("hasRole('admin_client_role')") //verificar si se puede colocar en el properties
+@PreAuthorize("hasRole('admin_client_role')")
 @Tag(name = "Authentication and Authorization API", description = "REST API related with user management")
 public class AuthController {
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
@@ -49,5 +49,7 @@ public class AuthController {
         return ResponseEntity.ok(authService.findAllUsersByKeycloak());
     }
 
-
+    public ResponseEntity<String> refreshTokenResponseEntity (@RequestBody String tokenRefreshRequest) {
+        return ResponseEntity.ok(authService.refreshToken(tokenRefreshRequest));
+    }
 }

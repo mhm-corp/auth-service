@@ -151,4 +151,8 @@ public class AuthService {
     public List<UserRepresentation> findAllUsersByKeycloak() {
         return keycloakService.findAllUsers();
     }
+
+    public String refreshToken(String tokenRefreshRequest) {
+        return null;
+    }
 }
