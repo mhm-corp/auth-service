@@ -1,7 +1,7 @@
 package com.mhm.bank.service.external;
 
-import org.junit.jupiter.api.BeforeEach;
 import com.mhm.bank.controller.dto.UserRegisteredEvent;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -17,8 +17,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,11 +53,15 @@ class KafkaProducerServiceTest {
 
     @Test
     void sendMessage_Success() {
+        String topic = "user-registered";
         UserRegisteredEvent event = createDataUserRegisteredEvent(false);
-        when(kafkaTemplate.send(anyString(), anyString(), any(UserRegisteredEvent.class)))
+        ReflectionTestUtils.setField(kafkaProducerService, "topic", topic);
+
+        when(kafkaTemplate.send(topic, event.userId(), event))
                 .thenReturn(CompletableFuture.completedFuture(sendResult));
 
-        CompletableFuture<SendResult<String, UserRegisteredEvent>> future = kafkaProducerService.sendMessage(event);
+        CompletableFuture<SendResult<String, UserRegisteredEvent>> future =
+                kafkaProducerService.sendMessage(event);
 
         assertNotNull(future);
         assertDoesNotThrow(() -> future.get(1, TimeUnit.SECONDS));
@@ -77,18 +80,39 @@ class KafkaProducerServiceTest {
     }
 
     @Test
-    void sendMessage_KafkaFailure() {
+    void sendMessage_KafkaFailure_VerifyErrorMessage() {
+        String topic = "test-topic";
         UserRegisteredEvent event = createDataUserRegisteredEvent(false);
+        ReflectionTestUtils.setField(kafkaProducerService, "topic", topic);
+        String errorMessage = "Kafka error";
 
-        when(kafkaTemplate.send(anyString(), anyString(), any(UserRegisteredEvent.class)))
-                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("Kafka error")));
+        when(kafkaTemplate.send(topic, event.userId(), event))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException(errorMessage)));
 
-        CompletableFuture<SendResult<String, UserRegisteredEvent>> future = kafkaProducerService.sendMessage(event);
+        CompletableFuture<SendResult<String, UserRegisteredEvent>> future =
+                kafkaProducerService.sendMessage(event);
 
-        assertNotNull(future);
         ExecutionException exception = assertThrows(ExecutionException.class,
                 () -> future.get(1, TimeUnit.SECONDS));
+
         assertTrue(exception.getCause() instanceof KafkaException);
+        assertTrue(exception.getCause().getMessage()
+                .contains("Failed to send message for user testUser"));
+        assertTrue(exception.getCause().getMessage().contains(errorMessage));
+    }
+
+    @Test
+    void sendMessage_VerifyTopicAndKey() {
+        String topic = "test-topic";
+        UserRegisteredEvent event = createDataUserRegisteredEvent(false);
+        ReflectionTestUtils.setField(kafkaProducerService, "topic", topic);
+
+        when(kafkaTemplate.send(topic, event.userId(), event))
+                .thenReturn(CompletableFuture.completedFuture(sendResult));
+
+        kafkaProducerService.sendMessage(event);
+
+        verify(kafkaTemplate).send(topic, event.userId(), event);
     }
 
 

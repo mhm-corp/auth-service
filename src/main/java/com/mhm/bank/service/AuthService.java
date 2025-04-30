@@ -1,23 +1,21 @@
 package com.mhm.bank.service;
 
-import com.mhm.bank.controller.dto.UserInformation;
-import com.mhm.bank.controller.dto.UserKCDto;
-import com.mhm.bank.controller.dto.UserRegisteredEvent;
+import com.mhm.bank.config.KeycloakTokenProvider;
+import com.mhm.bank.controller.dto.*;
+import com.mhm.bank.controller.validators.EmailValidator;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.repository.UserRepository;
 import com.mhm.bank.repository.entity.UserEntity;
 import com.mhm.bank.service.external.IKeycloakService;
 import com.mhm.bank.service.external.KafkaProducerService;
-import org.apache.kafka.common.KafkaException;
-import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.KafkaException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -35,19 +33,22 @@ public class AuthService {
     private final UserRepository userRepository;
     private final KafkaProducerService kafkaProducerService;
     private final IKeycloakService keycloakService;
+    private final KeycloakTokenProvider tokenProvider;
 
-    public AuthService(UserRepository userRepository, KafkaProducerService kafkaProducerService, IKeycloakService keycloakService) {
+    public AuthService(UserRepository userRepository, KafkaProducerService kafkaProducerService, IKeycloakService keycloakService, KeycloakTokenProvider tokenProvider) {
         this.userRepository = userRepository;
         this.kafkaProducerService = kafkaProducerService;
         this.keycloakService = keycloakService;
+        this.tokenProvider = tokenProvider;
     }
 
     @Transactional
     public String registerUser(UserInformation userInformation) throws UserAlreadyExistsException, KeycloakException, KafkaException {
         String usernameAfterKC = null;
+        String token = getTokenAdminAppAuth();
         try {
             doesItExistInDataBase(userInformation);
-            sendUserToKeycloak(userInformation);
+            sendUserToKeycloak(userInformation, token);
             usernameAfterKC = userInformation.username();
             UserEntity userEntity = sendUserToDataBase(userInformation);
             sendEventToKafka(userInformation);
@@ -66,18 +67,29 @@ public class AuthService {
             throw e;
         }
     }
+    public String getTokenAdminAppAuth() throws KeycloakException {
+        String token = tokenProvider.getAccessToken();
+        if (token == null) {
+            throw new KeycloakException("Failed to obtain Keycloak token");
+        }
+        return token;
+    }
 
-    private void sendUserToKeycloak(UserInformation userInformation) throws KeycloakException {
-        Set<String> roles = Set.of(kcUserRole);
+    private void sendUserToKeycloak(UserInformation userInformation, String token) throws KeycloakException {
+        Set<String> roles = (userInformation.roles() != null && !userInformation.roles().isEmpty())
+                ? userInformation.roles()
+                : Set.of(kcUserRole);
 
         UserKCDto userKCDto = new UserKCDto(
                 userInformation.username(),
-                userInformation.password() ,
+                userInformation.password(),
+                userInformation.firstName(),
+                userInformation.lastName(),
                 userInformation.email(),
                 roles
-
         );
-        boolean success = keycloakService.createUser(userKCDto);
+
+        boolean success = keycloakService.createUser(userKCDto, "Bearer " + token);
         if (!success) {
             throw new KeycloakException(String.format("Failed to create user %s in Keycloak", userKCDto.username()));
         }
@@ -148,7 +160,34 @@ public class AuthService {
         return userEntity;
     }
 
-    public List<UserRepresentation> findAllUsersByKeycloak() {
-        return keycloakService.findAllUsers();
+    private UserData getUserData(UserEntity userEntity) {
+        UserData userdata = new UserData();
+        userdata.setIdCard(userEntity.getId());
+        userdata.setUsername(userEntity.getUsername());
+        userdata.setFirstName(userEntity.getFirstName());
+        userdata.setLastName(userEntity.getLastName());
+        userdata.setAddress(userEntity.getAddress());
+        userdata.setEmail(userEntity.getEmail());
+        userdata.setBirthdate(userEntity.getBirthDate());
+        userdata.setPhoneNumber(userEntity.getPhoneNumber());
+        return userdata;
     }
+
+    public TokensUser loginUser(LoginRequest loginRequest) throws KeycloakException {
+        String token = getTokenAdminAppAuth();
+
+        TokensUser tokensUser = keycloakService.loginUser(loginRequest, token);
+
+        logger.info("{}]'s login was successful.", loginRequest.username());
+        return tokensUser;
+    }
+
+    public UserData getUserInformation(String searchData)  {
+        UserEntity userEntity = EmailValidator.isItAValidEmailFormat(searchData) ? userRepository.findByEmail(searchData) : userRepository.findByUsername(searchData);
+
+        if (userEntity == null) return  null;
+
+        return getUserData(userEntity);
+    }
+
 }
