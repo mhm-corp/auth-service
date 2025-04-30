@@ -8,6 +8,8 @@ import java.util.Set;
 public record UserKCDto  (
         String username,
         String password,
+        String firstName,
+        String lastName,
         String email,
         Set<String> roles
 ){

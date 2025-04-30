@@ -10,4 +10,7 @@ public interface UserRepository  extends ListCrudRepository<UserEntity, String> 
     boolean existsByUsername(String username);
 
     boolean existsByEmail(String email);
+
+    UserEntity findByUsername(String username);
+    UserEntity findByEmail(String email);
 }
