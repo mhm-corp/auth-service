@@ -10,6 +10,7 @@ import com.mhm.bank.controller.dto.UserInformation;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.service.AuthService;
+import com.mhm.bank.service.external.keycloak.IKeycloakService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,7 +34,8 @@ class AuthControllerTest {
 
     @Mock
     private AuthService authService;
-
+    @Mock
+    private IKeycloakService keycloakService;
 
     @InjectMocks
     private AuthController authController;
@@ -229,7 +231,7 @@ class AuthControllerTest {
     @Test
     void loginUser_shouldReturnOk_whenLoginIsSuccessful() throws KeycloakException {
         LoginRequest loginRequest = new LoginRequest("testuser", "password123");
-        TokensUser expectedTokens = new TokensUser("access-token-123", "refresh-token-456");
+        TokensUser expectedTokens = new TokensUser("access-token-123", "refresh-token-456", "3600");
         HttpServletResponse httpResponse = mock(HttpServletResponse.class);
 
         when(authService.loginUser(loginRequest)).thenReturn(expectedTokens);
@@ -238,7 +240,7 @@ class AuthControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         verify(authService).loginUser(loginRequest);
-        verify(httpResponse).addCookie(any());
+        verify(httpResponse, times(2)).addCookie(any());
     }
 
     @Test
@@ -268,44 +270,35 @@ class AuthControllerTest {
     }
 
     @Test
-    void getUserInformation_shouldReturnOk_whenUserFoundByUsername()  {
-        String username = "testuser";
+    void getUserInformation_shouldReturnOk_whenUserFoundByUsername() {
+        String accessToken = "valid-token";
+        String searchData = "testuser";
         UserData expectedUserData = new UserData();
-        expectedUserData.setUsername(username);
+        expectedUserData.setUsername(searchData);
 
-        when(authService.getUserInformation(username)).thenReturn(expectedUserData);
+        when(keycloakService.validateToken(accessToken)).thenReturn(true);
+        when(authService.getUserInformation(searchData)).thenReturn(expectedUserData);
 
-        ResponseEntity<UserData> response = authController.getUserInformation(username);
+        ResponseEntity<UserData> response = authController.getUserInformation(accessToken, searchData);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(expectedUserData, response.getBody());
-        verify(authService).getUserInformation(username);
+        verify(keycloakService).validateToken(accessToken);
+        verify(authService).getUserInformation(searchData);
     }
 
     @Test
-    void getUserInformation_shouldReturnOk_whenUserFoundByEmail()  {
-        String email = "test@example.com";
-        UserData expectedUserData = new UserData();
-        expectedUserData.setEmail(email);
-
-        when(authService.getUserInformation(email)).thenReturn(expectedUserData);
-
-        ResponseEntity<UserData> response = authController.getUserInformation(email);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(expectedUserData, response.getBody());
-        verify(authService).getUserInformation(email);
-    }
-
-    @Test
-    void getUserInformation_shouldReturnNotFound_whenUserDoesNotExist()  {
+    void getUserInformation_shouldReturnNotFound_whenUserDoesNotExist() {
+        String accessToken = "valid-token";
         String searchData = "nonexistent";
 
+        when(keycloakService.validateToken(accessToken)).thenReturn(true);
         when(authService.getUserInformation(searchData)).thenReturn(null);
 
-        ResponseEntity<UserData> response = authController.getUserInformation(searchData);
+        ResponseEntity<UserData> response = authController.getUserInformation(accessToken, searchData);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        verify(keycloakService).validateToken(accessToken);
         verify(authService).getUserInformation(searchData);
     }
 

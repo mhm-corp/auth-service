@@ -12,4 +12,5 @@ import lombok.Setter;
 public class TokensUser {
     private String accessToken;
     private String refreshToken;
+    private String expiresIn;
 }

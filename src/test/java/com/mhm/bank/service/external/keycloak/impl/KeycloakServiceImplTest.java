@@ -6,7 +6,6 @@ import com.mhm.bank.controller.dto.LoginRequest;
 import com.mhm.bank.controller.dto.TokensUser;
 import com.mhm.bank.controller.dto.UserKCDto;
 import com.mhm.bank.exception.KeycloakException;
-import com.mhm.bank.service.external.keycloak.impl.KeycloakServiceImpl;
 import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -114,7 +113,7 @@ class KeycloakServiceImplTest {
     void loginUser_ShouldReturnTokensSuccessfully() throws KeycloakException {
         LoginRequest loginRequest = new LoginRequest("testUser", "password");
         String token = "test-token";
-        TokensUser expectedTokens = new TokensUser("access-token-123", "refresh-token-456");
+        TokensUser expectedTokens = new TokensUser("access-token-123", "refresh-token-456", "3600");
 
         when(tokenProvider.getUserAccessToken(
                 loginRequest.username(),
@@ -126,6 +125,7 @@ class KeycloakServiceImplTest {
         assertNotNull(result);
         assertEquals(expectedTokens.getAccessToken(), result.getAccessToken());
         assertEquals(expectedTokens.getRefreshToken(), result.getRefreshToken());
+        assertEquals(expectedTokens.getExpiresIn(), result.getExpiresIn());
         verify(tokenProvider).getUserAccessToken(
                 loginRequest.username(),
                 loginRequest.password()

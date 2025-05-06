@@ -7,6 +7,7 @@ import com.mhm.bank.controller.dto.UserInformation;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.service.AuthService;
+import com.mhm.bank.service.external.keycloak.IKeycloakService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -33,10 +34,23 @@ public class AuthController {
     @Value("${cookie.secure}")
     private boolean cookieSecure;
     private final AuthService authService;
+    private final IKeycloakService keycloakService;
     private static final String NAME_TOKEN_IN_COOKIE = "accessToken";
+    private static final String NAME_REFRESH_TOKEN_IN_COOKIE = "refreshToken";
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, IKeycloakService keycloakService) {
         this.authService = authService;
+        this.keycloakService = keycloakService;
+    }
+
+    private void putInCookie (String nameCookie, String accessToken, HttpServletResponse response) {
+        Cookie cookie = new Cookie(nameCookie, accessToken);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(cookieSecure);
+        cookie.setPath("/");
+        cookie.setMaxAge(cookieMaxExpirationTimeSeconds);
+
+        response.addCookie(cookie);
     }
 
     @PostMapping("/register")
@@ -65,18 +79,10 @@ public class AuthController {
     public ResponseEntity<Void> loginUser (@Valid @RequestBody LoginRequest loginRequest, HttpServletResponse response) throws KeycloakException {
         TokensUser tokensUser = authService.loginUser(loginRequest);
 
-        if (tokensUser == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
+        if (tokensUser == null)  return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
 
-        Cookie cookie = new Cookie(NAME_TOKEN_IN_COOKIE, tokensUser.getAccessToken());
-        cookie.setHttpOnly(true);
-        cookie.setSecure(cookieSecure);
-        cookie.setPath("/");
-        cookie.setMaxAge(cookieMaxExpirationTimeSeconds);
-
-        response.addCookie(cookie);
-
+        putInCookie(NAME_TOKEN_IN_COOKIE, tokensUser.getAccessToken(), response);
+        putInCookie(NAME_REFRESH_TOKEN_IN_COOKIE, tokensUser.getRefreshToken(), response);
         return ResponseEntity.status(HttpStatus.OK).build();
     }
 
@@ -84,16 +90,53 @@ public class AuthController {
     @Operation(summary = "Get user information by username or email")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "User information retrieved successfully"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized or token expired"),
             @ApiResponse(responseCode = "404", description = "User not found")
     })
     public ResponseEntity<UserData> getUserInformation(
-            @RequestParam("searchData") String searchData)  {
+            @CookieValue(value = "accessToken", required = false) String accessToken,
+            @RequestParam("searchData") String searchData) {
+        if (accessToken == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        if (!keycloakService.validateToken(accessToken)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
         UserData userInfo = authService.getUserInformation(searchData);
         return userInfo != null ? ResponseEntity.ok(userInfo) : ResponseEntity.notFound().build();
     }
 
-    public ResponseEntity<String> refreshTokenResponseEntity (@RequestBody String tokenRefreshRequest) {
-        return ResponseEntity.ok(authService.refreshToken(tokenRefreshRequest));
+    @PostMapping("/refresh")
+    @Operation(summary = "Use the refresh token when the token has expired")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Token refreshed successfully"),
+            @ApiResponse(responseCode = "401", description = "Invalid refresh token"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<Void> refreshTokenResponse(
+            @CookieValue(value = "accessToken", required = false) String accessToken,
+            @CookieValue(value = "refreshToken", required = false) String refreshToken,
+            HttpServletResponse response) throws KeycloakException {
+
+        if (refreshToken == null || accessToken == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        if (keycloakService.validateToken(accessToken)) {
+            logger.debug("Current token is still valid, no need to refresh");
+            return null;
+        }
+
+        TokensUser newTokens = authService.refreshToken(refreshToken);
+        if (newTokens == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        putInCookie(NAME_TOKEN_IN_COOKIE, newTokens.getAccessToken(), response);
+
+        return ResponseEntity.ok().build();
     }
 
 }

@@ -1,5 +1,6 @@
 package com.mhm.bank.config;
 
+import com.mhm.bank.service.external.keycloak.IKeycloakService;
 import jakarta.servlet.http.Cookie;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,14 +21,14 @@ import java.util.Arrays;
 public class SecurityConfig {
     private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
     private JwtAuthentication jwtAuthentication;
-    private TokenProvider tokenProvider;
+    private IKeycloakService keycloakService;
 
     private static final String NAME_TOKEN_IN_COOKIE = "accessToken";
 
 
-    public SecurityConfig(JwtAuthentication jwtAuthentication, TokenProvider tokenProvider) {
+    public SecurityConfig(JwtAuthentication jwtAuthentication, IKeycloakService keycloakService) {
         this.jwtAuthentication = jwtAuthentication;
-        this.tokenProvider = tokenProvider;
+        this.keycloakService = keycloakService;
     }
 
     @Bean
@@ -39,6 +40,7 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/auth/register").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
+                        .requestMatchers("/api/auth/refresh").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> {
@@ -64,7 +66,7 @@ public class SecurityConfig {
                     .findFirst()
                     .orElse(null);
 
-            if (token != null && tokenProvider.validateToken(token)) {
+            if (token != null && keycloakService.validateToken(token)) {
                 return token;
             }
             logger.debug("Invalid token");

@@ -158,5 +158,19 @@ public class KeycloakServiceImpl implements IKeycloakService {
          return tokenProvider.getUserAccessToken(loginRequest.username(), loginRequest.password());
     }
 
+    @Override
+    public String getTokenAdminAppAuth () throws KeycloakException {
+        return tokenProvider.getTokenAdminAppAuth();
+    }
+
+    @Override
+    public TokensUser getNewToken(String refreshToken) {
+         return tokenProvider.getNewToken(refreshToken);
+    }
+
+    @Override
+    public boolean validateToken(String token) {
+        return tokenProvider.validateToken(token);
+    }
 
 }

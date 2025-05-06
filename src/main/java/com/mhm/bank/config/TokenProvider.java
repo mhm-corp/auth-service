@@ -46,8 +46,7 @@ public class TokenProvider {
         return serverUrl + "/realms/" + realm + "/protocol/openid-connect/token";
     }
 
-    private ResponseEntity<TokenResponse> getTokenFromKeycloak (String username, String password) throws KeycloakException {
-
+    private TokenResponse getTokenFromKeycloak (String username, String password) throws KeycloakException {
         RestTemplate restTemplate = new RestTemplate();
         String tokenUrl = getTokenUrlFromKeycloak();
 
@@ -73,7 +72,7 @@ public class TokenProvider {
                     request,
                     TokenResponse.class
             );
-            return response;
+            return response.getBody();
         } catch (org.springframework.web.client.HttpClientErrorException e) {
             throw new KeycloakException("Failed to obtain Keycloak token. Status: " + e.getStatusCode()
                     + ", Response: " + e.getResponseBodyAsString(), e);
@@ -85,11 +84,7 @@ public class TokenProvider {
     }
 
     public String getAccessToken() throws KeycloakException {
-        ResponseEntity<TokenResponse> response = getTokenFromKeycloak(adminAppName, adminAppPassword);
-        if (response == null) {
-            throw new KeycloakException("No response received from Keycloak");
-        }
-        TokenResponse body = response.getBody();
+        TokenResponse body =getTokenFromKeycloak(adminAppName, adminAppPassword);
         if (body == null) {
             throw new KeycloakException("No token response body received from Keycloak");
         }
@@ -97,17 +92,13 @@ public class TokenProvider {
     }
 
     public TokensUser getUserAccessToken(String username, String password) throws KeycloakException {
-        ResponseEntity<TokenResponse> response = getTokenFromKeycloak(username, password);
-        if (response == null) {
-            throw new KeycloakException("No response received from Keycloak");
-        }
-
-        TokenResponse body = response.getBody();
+        TokenResponse body = getTokenFromKeycloak(username, password);
         TokensUser tokensUser = new TokensUser();
 
         if (body != null) {
             tokensUser.setAccessToken(body.getAccessToken());
             tokensUser.setRefreshToken(body.getRefreshToken());
+            tokensUser.setExpiresIn(body.getExpiresIn());
         } else {
             throw new KeycloakException("No token response body received from Keycloak");
         }
@@ -160,5 +151,43 @@ public class TokenProvider {
             return false;
         }
     }
+
+    public TokensUser getNewToken (String refreshToken){
+        RestTemplate restTemplate = new RestTemplate();
+        String tokenUrl = getTokenUrlFromKeycloak();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
+        map.add("grant_type", "refresh_token");
+        map.add("client_id", clientId);
+        map.add("client_secret", clientSecret);
+        map.add("refresh_token", refreshToken);
+
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(map, headers);
+
+        try {
+            ResponseEntity<TokenResponse> response = restTemplate.exchange(
+                    tokenUrl,
+                    HttpMethod.POST,
+                    request,
+                    TokenResponse.class
+            );
+
+            TokenResponse body = response.getBody();
+            if (body != null) {
+                TokensUser tokensUser = new TokensUser();
+                tokensUser.setAccessToken(body.getAccessToken());
+                tokensUser.setRefreshToken(body.getRefreshToken());
+                return tokensUser;
+            }
+            return null;
+        } catch (Exception e) {
+            logger.error("Error refreshing token: ", e);
+            return null;
+        }
+    }
+
 
 }

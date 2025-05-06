@@ -14,4 +14,10 @@ public interface IKeycloakService {
 
     TokensUser loginUser(LoginRequest loginRequest, String token) throws KeycloakException;
 
+    String getTokenAdminAppAuth () throws KeycloakException;
+
+    TokensUser getNewToken(String refreshToken);
+
+    boolean validateToken(String token);
+
 }

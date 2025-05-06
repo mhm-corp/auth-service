@@ -1,6 +1,5 @@
 package com.mhm.bank.service;
 
-import com.mhm.bank.config.TokenProvider;
 import com.mhm.bank.controller.dto.*;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
@@ -31,21 +30,19 @@ public class AuthService {
     private final KafkaProducerService kafkaProducerService;
     private final IKeycloakService keycloakService;
     private final UserDataAccessService userDataAccessService;
-    private final TokenProvider tokenService;
 
 
-    public AuthService(KafkaProducerService kafkaProducerService, IKeycloakService keycloakService, UserDataAccessService userDataAccessService, TokenProvider tokenService) {
+    public AuthService(KafkaProducerService kafkaProducerService, IKeycloakService keycloakService, UserDataAccessService userDataAccessService) throws KeycloakException {
         this.kafkaProducerService = kafkaProducerService;
         this.keycloakService = keycloakService;
         this.userDataAccessService = userDataAccessService;
-        this.tokenService = tokenService;
     }
 
     @Transactional
     public String registerUser(UserInformation userInformation) throws UserAlreadyExistsException, KeycloakException, KafkaException {
         String usernameAfterKC = userInformation.username();
         try {
-            String token = tokenService.getTokenAdminAppAuth();
+            String token = keycloakService.getTokenAdminAppAuth();
             userDataAccessService.doesUserExistInDataBase(userInformation);
             sendUserToKeycloak(userInformation, token);
             UserEntity userEntity = userDataAccessService.sendUserToDataBase(userInformation);
@@ -113,7 +110,7 @@ public class AuthService {
     }
 
     public TokensUser loginUser(LoginRequest loginRequest) throws KeycloakException {
-        String token = tokenService.getTokenAdminAppAuth();
+        String token = keycloakService.getTokenAdminAppAuth();
 
         TokensUser tokensUser = keycloakService.loginUser(loginRequest, token);
 
@@ -125,8 +122,8 @@ public class AuthService {
         return userDataAccessService.getUserInfo(searchData);
     }
 
-    public String refreshToken(String tokenRefreshRequest) {
-        return null;
+    public TokensUser refreshToken(String refreshToken) throws KeycloakException {
+        return keycloakService.getNewToken(refreshToken);
     }
 
 }
