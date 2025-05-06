@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -79,6 +80,25 @@ class AuthServiceTest {
 
         ReflectionTestUtils.setField(authService, "authTimeout", 30);
         ReflectionTestUtils.setField(authService, "kcUserRole", "user");
+    }
+
+    private SendResult<String, UserRegisteredEvent> mockSendResult() {
+        ProducerRecord<String, UserRegisteredEvent> record = new ProducerRecord<>("topic", "key",
+                new UserRegisteredEvent(
+                        "test-id",
+                        "testuser",
+                        "John",
+                        "Doe",
+                        "test@example.com",
+                        "123 Test St",
+                        "1234567890",
+                        "1990-01-01"
+                ));
+        RecordMetadata metadata = new RecordMetadata(
+                new TopicPartition("topic", 0),
+                0L, 0L, 0L, 0L, 0, 0
+        );
+        return new SendResult<>(record, metadata);
     }
 
     @Test
@@ -264,5 +284,38 @@ class AuthServiceTest {
         assertThrows(KafkaException.class, () ->
                 authService.registerUser(userInformation));
         verify(keycloakService).deleteUser(userInformation.username());
+    }
+
+    @Test
+    void registerUserSuccessfullyWithCustomRoles() throws Exception, KeycloakException {
+        // Create user information with custom roles
+        UserInformation userWithRoles = new UserInformation(
+                "test-id-1",
+                "testuser",
+                "password123",
+                "John",
+                "Doe",
+                "123 Test St",
+                "test@example.com",
+                LocalDate.of(1990, 1, 1),
+                "1234567890",
+                Set.of("custom-role")
+        );
+
+        String token = "admin-token";
+        String expectedMessage = String.format("User %s with ID %s has been added",
+                userWithRoles.username(), userWithRoles.idCard());
+
+        when(keycloakService.getTokenAdminAppAuth()).thenReturn(token);
+        when(keycloakService.createUser(any(), eq("Bearer " + token))).thenReturn(true);
+        when(userDataAccessService.sendUserToDataBase(userWithRoles)).thenReturn(userEntity);
+        when(kafkaProducerService.sendMessage(any()))
+                .thenReturn(CompletableFuture.completedFuture(mockSendResult()));
+
+        String result = authService.registerUser(userWithRoles);
+
+        assertEquals(expectedMessage, result);
+        verify(keycloakService).createUser(argThat(userKCDto ->
+                userKCDto.roles().contains("custom-role")), eq("Bearer " + token));
     }
 }
