@@ -20,6 +20,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.KafkaException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDate;
 
@@ -269,44 +272,41 @@ class AuthControllerTest {
 
     @Test
     void getUserInformation_shouldReturnOk_whenUserFoundByUsername()  {
-        String username = "testuser";
+        SecurityContext securityContext = mock(SecurityContext.class);
+        Authentication authentication = mock(Authentication.class);
+        SecurityContextHolder.setContext(securityContext);
+
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.getName()).thenReturn("testuser");
+
         UserData expectedUserData = new UserData();
-        expectedUserData.setUsername(username);
+        expectedUserData.setUsername("testuser");
 
-        when(authService.getUserInformation(username)).thenReturn(expectedUserData);
+        when(authService.getUserInformation("testuser")).thenReturn(expectedUserData);
 
-        ResponseEntity<UserData> response = authController.getUserInformation(username);
+        ResponseEntity<UserData> response = authController.getUserInformation();
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(expectedUserData, response.getBody());
-        verify(authService).getUserInformation(username);
-    }
-
-    @Test
-    void getUserInformation_shouldReturnOk_whenUserFoundByEmail()  {
-        String email = "test@example.com";
-        UserData expectedUserData = new UserData();
-        expectedUserData.setEmail(email);
-
-        when(authService.getUserInformation(email)).thenReturn(expectedUserData);
-
-        ResponseEntity<UserData> response = authController.getUserInformation(email);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(expectedUserData, response.getBody());
-        verify(authService).getUserInformation(email);
+        verify(authService).getUserInformation("testuser");
     }
 
     @Test
     void getUserInformation_shouldReturnNotFound_whenUserDoesNotExist()  {
-        String searchData = "nonexistent";
+        Authentication authentication = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        SecurityContextHolder.setContext(securityContext);
 
-        when(authService.getUserInformation(searchData)).thenReturn(null);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.getName()).thenReturn("nonexistent");
 
-        ResponseEntity<UserData> response = authController.getUserInformation(searchData);
+        when(authService.getUserInformation("nonexistent")).thenReturn(null);
+
+        ResponseEntity<UserData> response = authController.getUserInformation();
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        verify(authService).getUserInformation(searchData);
+        verify(authService).getUserInformation("nonexistent");
     }
+
 
 }
