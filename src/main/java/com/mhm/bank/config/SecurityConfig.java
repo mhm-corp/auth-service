@@ -1,5 +1,6 @@
 package com.mhm.bank.config;
 
+import com.mhm.bank.service.external.keycloak.IKeycloakService;
 import jakarta.servlet.http.Cookie;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,16 +20,15 @@ import java.util.Arrays;
 @EnableMethodSecurity
 public class SecurityConfig {
     private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
-
-    private JwtAuthenticationConvert jwtAuthenticationConvert;
-    private TokenValidator tokenValidator;
+    private JwtAuthentication jwtAuthentication;
+    private IKeycloakService keycloakService;
 
     private static final String NAME_TOKEN_IN_COOKIE = "accessToken";
 
 
-    public SecurityConfig(JwtAuthenticationConvert jwtAuthenticationConvert, TokenValidator tokenValidator) {
-        this.jwtAuthenticationConvert = jwtAuthenticationConvert;
-        this.tokenValidator = tokenValidator;
+    public SecurityConfig(JwtAuthentication jwtAuthentication, IKeycloakService keycloakService) {
+        this.jwtAuthentication = jwtAuthentication;
+        this.keycloakService = keycloakService;
     }
 
     @Bean
@@ -40,10 +40,11 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/auth/register").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
+                        .requestMatchers("/api/auth/refresh").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> {
-                    oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConvert));
+                    oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthentication));
                     oauth2.bearerTokenResolver(bearerTokenResolver());
                 })
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -65,7 +66,7 @@ public class SecurityConfig {
                     .findFirst()
                     .orElse(null);
 
-            if (token != null && tokenValidator.validateToken(token)) {
+            if (token != null && keycloakService.validateToken(token)) {
                 return token;
             }
             logger.debug("Invalid token");

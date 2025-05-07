@@ -1,4 +1,4 @@
-package com.mhm.bank.service.external;
+package com.mhm.bank.service.external.keycloak;
 
 
 import com.mhm.bank.controller.dto.LoginRequest;
@@ -13,5 +13,11 @@ public interface IKeycloakService {
     void deleteUser(String usernameAfterKC) throws KeycloakException;
 
     TokensUser loginUser(LoginRequest loginRequest, String token) throws KeycloakException;
+
+    String getTokenAdminAppAuth () throws KeycloakException;
+
+    TokensUser getNewToken(String refreshToken);
+
+    boolean validateToken(String token);
 
 }

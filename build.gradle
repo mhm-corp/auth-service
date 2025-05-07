@@ -41,6 +41,8 @@ dependencies {
 	implementation("org.keycloak:keycloak-admin-client:26.0.3")
 	implementation("org.jboss.resteasy:resteasy-core-spi:6.2.12.Final")
 
+	implementation("io.jsonwebtoken:jjwt-api:0.12.6")
+
 
 	compileOnly 'org.projectlombok:lombok'
 

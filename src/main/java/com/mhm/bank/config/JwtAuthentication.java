@@ -14,10 +14,11 @@ import org.springframework.stereotype.Component;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 @Component
-public class JwtAuthenticationConvert implements Converter<Jwt, AbstractAuthenticationToken> {
+public class JwtAuthentication implements Converter<Jwt, AbstractAuthenticationToken> {
 
     private final JwtGrantedAuthoritiesConverter jwtGrantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
 
@@ -33,9 +34,13 @@ public class JwtAuthenticationConvert implements Converter<Jwt, AbstractAuthenti
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
         Collection<GrantedAuthority> authorities = Stream
-                .concat(jwtGrantedAuthoritiesConverter.convert(jwt).stream(), extractResourceRoles(jwt).stream())
+                .concat(
+                        Optional.ofNullable(jwtGrantedAuthoritiesConverter.convert(jwt))
+                                .orElse(List.of())
+                                .stream(),
+                        extractResourceRoles(jwt).stream()
+                )
                 .toList();
-        String getPrincipalName;
         return new JwtAuthenticationToken(jwt, authorities, getPrincipalName(jwt));
     }
 

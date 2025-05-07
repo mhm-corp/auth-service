@@ -10,6 +10,7 @@ import com.mhm.bank.controller.dto.UserInformation;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.service.AuthService;
+import com.mhm.bank.service.external.keycloak.IKeycloakService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,8 +27,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDate;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -36,7 +36,8 @@ class AuthControllerTest {
 
     @Mock
     private AuthService authService;
-
+    @Mock
+    private IKeycloakService keycloakService;
 
     @InjectMocks
     private AuthController authController;
@@ -232,7 +233,7 @@ class AuthControllerTest {
     @Test
     void loginUser_shouldReturnOk_whenLoginIsSuccessful() throws KeycloakException {
         LoginRequest loginRequest = new LoginRequest("testuser", "password123");
-        TokensUser expectedTokens = new TokensUser("access-token-123", "refresh-token-456");
+        TokensUser expectedTokens = new TokensUser("access-token-123", "refresh-token-456", "3600");
         HttpServletResponse httpResponse = mock(HttpServletResponse.class);
 
         when(authService.loginUser(loginRequest)).thenReturn(expectedTokens);
@@ -241,7 +242,7 @@ class AuthControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         verify(authService).loginUser(loginRequest);
-        verify(httpResponse).addCookie(any());
+        verify(httpResponse, times(2)).addCookie(any());
     }
 
     @Test
@@ -271,7 +272,8 @@ class AuthControllerTest {
     }
 
     @Test
-    void getUserInformation_shouldReturnOk_whenUserFoundByUsername()  {
+    void getUserInformation_shouldReturnOk_whenUserFoundByUsername() {
+        String accessToken = "valid-token";
         SecurityContext securityContext = mock(SecurityContext.class);
         Authentication authentication = mock(Authentication.class);
         SecurityContextHolder.setContext(securityContext);
@@ -282,30 +284,157 @@ class AuthControllerTest {
         UserData expectedUserData = new UserData();
         expectedUserData.setUsername("testuser");
 
+        when(keycloakService.validateToken(accessToken)).thenReturn(true);
         when(authService.getUserInformation("testuser")).thenReturn(expectedUserData);
 
-        ResponseEntity<UserData> response = authController.getUserInformation();
+        ResponseEntity<UserData> response = authController.getUserInformation(accessToken);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(expectedUserData, response.getBody());
+        verify(keycloakService).validateToken(accessToken);
         verify(authService).getUserInformation("testuser");
     }
 
     @Test
-    void getUserInformation_shouldReturnNotFound_whenUserDoesNotExist()  {
-        Authentication authentication = mock(Authentication.class);
+    void getUserInformation_shouldReturnNotFound_whenUserDoesNotExist() {
+        String accessToken = "valid-token";
         SecurityContext securityContext = mock(SecurityContext.class);
+        Authentication authentication = mock(Authentication.class);
         SecurityContextHolder.setContext(securityContext);
 
         when(securityContext.getAuthentication()).thenReturn(authentication);
         when(authentication.getName()).thenReturn("nonexistent");
-
+        when(keycloakService.validateToken(accessToken)).thenReturn(true);
         when(authService.getUserInformation("nonexistent")).thenReturn(null);
 
-        ResponseEntity<UserData> response = authController.getUserInformation();
+        ResponseEntity<UserData> response = authController.getUserInformation(accessToken);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         verify(authService).getUserInformation("nonexistent");
+    }
+
+    @Test
+    void getUserInformation_shouldReturnUnauthorized_whenAccessTokenIsNull() {
+        ResponseEntity<UserData> response = authController.getUserInformation(null);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        verify(keycloakService, never()).validateToken(any());
+        verify(authService, never()).getUserInformation(any());
+    }
+
+    @Test
+    void getUserInformation_shouldReturnUnauthorized_whenAccessTokenIsInvalid() {
+        String accessToken = "invalid-token";
+
+        when(keycloakService.validateToken(accessToken)).thenReturn(false);
+
+        ResponseEntity<UserData> response = authController.getUserInformation(accessToken);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        verify(keycloakService).validateToken(accessToken);
+        verify(authService, never()).getUserInformation(any());
+    }
+
+    @Test
+    void refreshToken_shouldReturnOk_whenRefreshSuccessful() throws KeycloakException {
+        String accessToken = "expired-token";
+        String refreshToken = "valid-refresh-token";
+        TokensUser newTokens = new TokensUser("new-access-token", "new-refresh-token", "3600");
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        when(keycloakService.validateToken(accessToken)).thenReturn(false);
+        when(authService.refreshToken(refreshToken)).thenReturn(newTokens);
+
+        ResponseEntity<Void> result = authController.refreshTokenResponse(accessToken, refreshToken, response);
+
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+        verify(keycloakService).validateToken(accessToken);
+        verify(authService).refreshToken(refreshToken);
+        verify(response).addCookie(any());
+    }
+
+    @Test
+    void refreshToken_shouldReturnUnauthorized_whenRefreshTokenIsNull() throws KeycloakException {
+        String accessToken = "valid-token";
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        ResponseEntity<Void> result = authController.refreshTokenResponse(accessToken, null, response);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, result.getStatusCode());
+        verify(keycloakService, never()).validateToken(any());
+        verify(authService, never()).refreshToken(any());
+    }
+
+    @Test
+    void refreshToken_shouldReturnUnauthorized_whenAccessTokenIsNull() throws KeycloakException {
+        String refreshToken = "valid-refresh-token";
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        ResponseEntity<Void> result = authController.refreshTokenResponse(null, refreshToken, response);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, result.getStatusCode());
+        verify(keycloakService, never()).validateToken(any());
+        verify(authService, never()).refreshToken(any());
+    }
+
+    @Test
+    void refreshToken_shouldReturnUnauthorized_whenRefreshTokenIsInvalid() throws KeycloakException {
+        String accessToken = "expired-token";
+        String refreshToken = "invalid-refresh-token";
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        when(keycloakService.validateToken(accessToken)).thenReturn(false);
+        when(authService.refreshToken(refreshToken)).thenReturn(null);
+
+        ResponseEntity<Void> result = authController.refreshTokenResponse(accessToken, refreshToken, response);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, result.getStatusCode());
+        verify(keycloakService).validateToken(accessToken);
+        verify(authService).refreshToken(refreshToken);
+    }
+
+    @Test
+    void refreshToken_shouldReturnNull_whenCurrentTokenIsStillValid() throws KeycloakException {
+        String accessToken = "valid-token";
+        String refreshToken = "valid-refresh-token";
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        when(keycloakService.validateToken(accessToken)).thenReturn(true);
+
+        ResponseEntity<Void> result = authController.refreshTokenResponse(accessToken, refreshToken, response);
+
+        assertNull(result);
+        verify(keycloakService).validateToken(accessToken);
+        verify(authService, never()).refreshToken(any());
+    }
+
+    @Test
+    void refreshToken_shouldThrowException_whenKeycloakFails() throws KeycloakException {
+        String accessToken = "expired-token";
+        String refreshToken = "valid-refresh-token";
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        when(keycloakService.validateToken(accessToken)).thenReturn(false);
+        when(authService.refreshToken(refreshToken)).thenThrow(new KeycloakException("Refresh token failed"));
+
+        assertThrows(KeycloakException.class,
+                () -> authController.refreshTokenResponse(accessToken, refreshToken, response));
+        verify(keycloakService).validateToken(accessToken);
+        verify(authService).refreshToken(refreshToken);
+    }
+
+    @Test
+    void loginUser_shouldThrowException_whenInputFormatIsInvalid() throws KeycloakException {
+        LoginRequest loginRequest = new LoginRequest("", "");
+        HttpServletResponse httpResponse = mock(HttpServletResponse.class);
+
+        when(authService.loginUser(loginRequest))
+                .thenThrow(new IllegalArgumentException("Invalid input format"));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> authController.loginUser(loginRequest, httpResponse));
+        verify(authService).loginUser(loginRequest);
+        verify(httpResponse, never()).addCookie(any());
     }
 
 

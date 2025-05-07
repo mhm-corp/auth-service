@@ -1,12 +1,12 @@
-package com.mhm.bank.service.external.impl;
+package com.mhm.bank.service.external.keycloak.impl;
 
 import com.mhm.bank.config.KeycloakProvider;
-import com.mhm.bank.config.KeycloakTokenProvider;
+import com.mhm.bank.config.TokenProvider;
 import com.mhm.bank.controller.dto.LoginRequest;
 import com.mhm.bank.controller.dto.TokensUser;
 import com.mhm.bank.controller.dto.UserKCDto;
 import com.mhm.bank.exception.KeycloakException;
-import com.mhm.bank.service.external.IKeycloakService;
+import com.mhm.bank.service.external.keycloak.IKeycloakService;
 import jakarta.ws.rs.core.Response;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.resource.RealmResource;
@@ -31,11 +31,11 @@ public class KeycloakServiceImpl implements IKeycloakService {
     private static final int KC_ERROR_USER_EXISTED = 409;
 
     private KeycloakProvider keycloakProvider;
-    private KeycloakTokenProvider keycloakTokenProvider;
+    private TokenProvider tokenProvider;
 
-    public KeycloakServiceImpl(KeycloakProvider keycloakProvider, KeycloakTokenProvider keycloakTokenProvider) {
+    public KeycloakServiceImpl(KeycloakProvider keycloakProvider, TokenProvider tokenProvider) {
         this.keycloakProvider = keycloakProvider;
-        this.keycloakTokenProvider = keycloakTokenProvider;
+        this.tokenProvider = tokenProvider;
     }
 
     @Override
@@ -155,8 +155,22 @@ public class KeycloakServiceImpl implements IKeycloakService {
 
     @Override
     public TokensUser loginUser(LoginRequest loginRequest, String token) throws KeycloakException {
-         return keycloakTokenProvider.getUserAccessToken(loginRequest.username(), loginRequest.password(), token);
+         return tokenProvider.getUserAccessToken(loginRequest.username(), loginRequest.password());
     }
 
+    @Override
+    public String getTokenAdminAppAuth () throws KeycloakException {
+        return tokenProvider.getTokenAdminAppAuth();
+    }
+
+    @Override
+    public TokensUser getNewToken(String refreshToken) {
+         return tokenProvider.getNewToken(refreshToken);
+    }
+
+    @Override
+    public boolean validateToken(String token) {
+        return tokenProvider.validateToken(token);
+    }
 
 }
