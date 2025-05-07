@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 @Component
-public class JwtAuthenticationConvert implements Converter<Jwt, AbstractAuthenticationToken> {
+public class JwtAuthentication implements Converter<Jwt, AbstractAuthenticationToken> {
 
     private final JwtGrantedAuthoritiesConverter jwtGrantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
 

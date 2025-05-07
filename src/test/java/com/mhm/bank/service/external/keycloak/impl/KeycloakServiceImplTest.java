@@ -1,7 +1,7 @@
-package com.mhm.bank.service.external.impl;
+package com.mhm.bank.service.external.keycloak.impl;
 
 import com.mhm.bank.config.KeycloakProvider;
-import com.mhm.bank.config.KeycloakTokenProvider;
+import com.mhm.bank.config.TokenProvider;
 import com.mhm.bank.controller.dto.LoginRequest;
 import com.mhm.bank.controller.dto.TokensUser;
 import com.mhm.bank.controller.dto.UserKCDto;
@@ -49,11 +49,11 @@ class KeycloakServiceImplTest {
 
     private KeycloakServiceImpl keycloakService;
     @Mock
-    private KeycloakTokenProvider keycloakTokenProvider;
+    private TokenProvider tokenProvider;
 
     @BeforeEach
     void setUp() {
-        keycloakService = new KeycloakServiceImpl(keycloakProvider, keycloakTokenProvider);
+        keycloakService = new KeycloakServiceImpl(keycloakProvider, tokenProvider);
         ReflectionTestUtils.setField(keycloakService, "kcUserRole", "user");
     }
 
@@ -113,12 +113,11 @@ class KeycloakServiceImplTest {
     void loginUser_ShouldReturnTokensSuccessfully() throws KeycloakException {
         LoginRequest loginRequest = new LoginRequest("testUser", "password");
         String token = "test-token";
-        TokensUser expectedTokens = new TokensUser("access-token-123", "refresh-token-456");
+        TokensUser expectedTokens = new TokensUser("access-token-123", "refresh-token-456", "3600");
 
-        when(keycloakTokenProvider.getUserAccessToken(
+        when(tokenProvider.getUserAccessToken(
                 loginRequest.username(),
-                loginRequest.password(),
-                token
+                loginRequest.password()
         )).thenReturn(expectedTokens);
 
         TokensUser result = keycloakService.loginUser(loginRequest, token);
@@ -126,12 +125,13 @@ class KeycloakServiceImplTest {
         assertNotNull(result);
         assertEquals(expectedTokens.getAccessToken(), result.getAccessToken());
         assertEquals(expectedTokens.getRefreshToken(), result.getRefreshToken());
-        verify(keycloakTokenProvider).getUserAccessToken(
+        assertEquals(expectedTokens.getExpiresIn(), result.getExpiresIn());
+        verify(tokenProvider).getUserAccessToken(
                 loginRequest.username(),
-                loginRequest.password(),
-                token
+                loginRequest.password()
         );
     }
+
 
     @Test
     void loginUser_ShouldThrowException_WhenKeycloakFails() throws KeycloakException {
@@ -139,15 +139,16 @@ class KeycloakServiceImplTest {
         String token = "test-token";
         String errorMessage = "Authentication failed";
 
-        when(keycloakTokenProvider.getUserAccessToken(
+        when(tokenProvider.getUserAccessToken(
                 loginRequest.username(),
-                loginRequest.password(),
-                token
+                loginRequest.password()
         )).thenThrow(new KeycloakException(errorMessage));
 
         KeycloakException exception = assertThrows(KeycloakException.class,
                 () -> keycloakService.loginUser(loginRequest, token));
+
         assertEquals(errorMessage, exception.getMessage());
+        verify(tokenProvider).getUserAccessToken(loginRequest.username(), loginRequest.password());
     }
 
     @Test
@@ -200,6 +201,66 @@ class KeycloakServiceImplTest {
         when(usersResource.get(anyString())).thenReturn(userResource);
         when(userResource.roles()).thenReturn(roleMappingResource);
         when(roleMappingResource.realmLevel()).thenReturn(roleScopeResource);
+    }
+
+    @Test
+    void getTokenAdminAppAuth_ShouldReturnToken() throws KeycloakException {
+        String expectedToken = "admin-token-123";
+        when(tokenProvider.getTokenAdminAppAuth()).thenReturn(expectedToken);
+
+        String result = keycloakService.getTokenAdminAppAuth();
+
+        assertEquals(expectedToken, result);
+        verify(tokenProvider).getTokenAdminAppAuth();
+    }
+
+    @Test
+    void getTokenAdminAppAuth_ShouldThrowException_WhenTokenProviderFails() throws KeycloakException {
+        String errorMessage = "Failed to get admin token";
+        when(tokenProvider.getTokenAdminAppAuth()).thenThrow(new KeycloakException(errorMessage));
+
+        KeycloakException exception = assertThrows(KeycloakException.class,
+                () -> keycloakService.getTokenAdminAppAuth());
+
+        assertEquals(errorMessage, exception.getMessage());
+        verify(tokenProvider).getTokenAdminAppAuth();
+    }
+
+    @Test
+    void getNewToken_ShouldReturnNewTokens() {
+        String refreshToken = "refresh-token-123";
+        TokensUser expectedTokens = new TokensUser("new-access-token", "new-refresh-token", "3600");
+        when(tokenProvider.getNewToken(refreshToken)).thenReturn(expectedTokens);
+
+        TokensUser result = keycloakService.getNewToken(refreshToken);
+
+        assertNotNull(result);
+        assertEquals(expectedTokens.getAccessToken(), result.getAccessToken());
+        assertEquals(expectedTokens.getRefreshToken(), result.getRefreshToken());
+        assertEquals(expectedTokens.getExpiresIn(), result.getExpiresIn());
+        verify(tokenProvider).getNewToken(refreshToken);
+    }
+
+    @Test
+    void validateToken_ShouldReturnTrue_WhenTokenIsValid() {
+        String token = "valid-token";
+        when(tokenProvider.validateToken(token)).thenReturn(true);
+
+        boolean result = keycloakService.validateToken(token);
+
+        assertTrue(result);
+        verify(tokenProvider).validateToken(token);
+    }
+
+    @Test
+    void validateToken_ShouldReturnFalse_WhenTokenIsInvalid() {
+        String token = "invalid-token";
+        when(tokenProvider.validateToken(token)).thenReturn(false);
+
+        boolean result = keycloakService.validateToken(token);
+
+        assertFalse(result);
+        verify(tokenProvider).validateToken(token);
     }
 
 }
