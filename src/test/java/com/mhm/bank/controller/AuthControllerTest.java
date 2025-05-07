@@ -21,6 +21,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.KafkaException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDate;
 
@@ -271,41 +274,48 @@ class AuthControllerTest {
     @Test
     void getUserInformation_shouldReturnOk_whenUserFoundByUsername() {
         String accessToken = "valid-token";
-        String searchData = "testuser";
+        SecurityContext securityContext = mock(SecurityContext.class);
+        Authentication authentication = mock(Authentication.class);
+        SecurityContextHolder.setContext(securityContext);
+
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.getName()).thenReturn("testuser");
+
         UserData expectedUserData = new UserData();
-        expectedUserData.setUsername(searchData);
+        expectedUserData.setUsername("testuser");
 
         when(keycloakService.validateToken(accessToken)).thenReturn(true);
-        when(authService.getUserInformation(searchData)).thenReturn(expectedUserData);
+        when(authService.getUserInformation("testuser")).thenReturn(expectedUserData);
 
-        ResponseEntity<UserData> response = authController.getUserInformation(accessToken, searchData);
+        ResponseEntity<UserData> response = authController.getUserInformation(accessToken);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(expectedUserData, response.getBody());
         verify(keycloakService).validateToken(accessToken);
-        verify(authService).getUserInformation(searchData);
+        verify(authService).getUserInformation("testuser");
     }
 
     @Test
     void getUserInformation_shouldReturnNotFound_whenUserDoesNotExist() {
         String accessToken = "valid-token";
-        String searchData = "nonexistent";
+        SecurityContext securityContext = mock(SecurityContext.class);
+        Authentication authentication = mock(Authentication.class);
+        SecurityContextHolder.setContext(securityContext);
 
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.getName()).thenReturn("nonexistent");
         when(keycloakService.validateToken(accessToken)).thenReturn(true);
-        when(authService.getUserInformation(searchData)).thenReturn(null);
+        when(authService.getUserInformation("nonexistent")).thenReturn(null);
 
-        ResponseEntity<UserData> response = authController.getUserInformation(accessToken, searchData);
+        ResponseEntity<UserData> response = authController.getUserInformation(accessToken);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        verify(keycloakService).validateToken(accessToken);
-        verify(authService).getUserInformation(searchData);
+        verify(authService).getUserInformation("nonexistent");
     }
 
     @Test
     void getUserInformation_shouldReturnUnauthorized_whenAccessTokenIsNull() {
-        String searchData = "testuser";
-
-        ResponseEntity<UserData> response = authController.getUserInformation(null, searchData);
+        ResponseEntity<UserData> response = authController.getUserInformation(null);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         verify(keycloakService, never()).validateToken(any());
@@ -315,11 +325,10 @@ class AuthControllerTest {
     @Test
     void getUserInformation_shouldReturnUnauthorized_whenAccessTokenIsInvalid() {
         String accessToken = "invalid-token";
-        String searchData = "testuser";
 
         when(keycloakService.validateToken(accessToken)).thenReturn(false);
 
-        ResponseEntity<UserData> response = authController.getUserInformation(accessToken, searchData);
+        ResponseEntity<UserData> response = authController.getUserInformation(accessToken);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         verify(keycloakService).validateToken(accessToken);

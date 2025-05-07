@@ -21,6 +21,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.KafkaException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -87,15 +89,14 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    @Operation(summary = "Get user information by username or email")
+    @Operation(summary = "Get the logged-in user's information by username or email")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "User information retrieved successfully"),
             @ApiResponse(responseCode = "401", description = "Unauthorized or token expired"),
             @ApiResponse(responseCode = "404", description = "User not found")
     })
     public ResponseEntity<UserData> getUserInformation(
-            @CookieValue(value = "accessToken", required = false) String accessToken,
-            @RequestParam("searchData") String searchData) {
+            @CookieValue(value = "accessToken", required = false) String accessToken)  {
         if (accessToken == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
@@ -104,7 +105,9 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        UserData userInfo = authService.getUserInformation(searchData);
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        UserData userInfo = authService.getUserInformation(username);
         return userInfo != null ? ResponseEntity.ok(userInfo) : ResponseEntity.notFound().build();
     }
 

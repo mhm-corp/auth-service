@@ -78,6 +78,7 @@ class AuthServiceTest {
         userEntity.setPhoneNumber(userInformation.phoneNumber());
         userEntity.setBirthDate(userInformation.birthdate());
 
+        //For Keycloak
         ReflectionTestUtils.setField(authService, "authTimeout", 30);
         ReflectionTestUtils.setField(authService, "kcUserRole", "user");
     }
