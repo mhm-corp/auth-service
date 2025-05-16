@@ -1,5 +1,7 @@
 package com.mhm.bank.config;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mhm.bank.controller.dto.TokensUser;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.service.dto.TokenResponse;
@@ -17,14 +19,20 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.IOException;
 import java.net.URL;
 import java.security.interfaces.RSAPublicKey;
 
 @Component
 public class TokenProvider {
     private static final Logger logger = LoggerFactory.getLogger(TokenProvider.class);
+
+    private static final String REFRESH_TOKEN_GRANT = "refresh_token";
+    private static final String PASSWORD_GRANT = "password";
+
     @Value("${keycloak.server.url}")
     private String serverUrl;
     @Value("${keycloak.realm_name}")
@@ -46,6 +54,23 @@ public class TokenProvider {
         return serverUrl + "/realms/" + realm + "/protocol/openid-connect/token";
     }
 
+    private MultiValueMap<String, String> createTokenRequestMap(String grantType, String username, String password) {
+        MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
+        map.add("grant_type", grantType);
+        map.add("client_id", clientId);
+        map.add("client_secret", clientSecret);
+
+        if (grantType.equals(PASSWORD_GRANT)) {
+            map.add("username", username);
+            map.add(PASSWORD_GRANT, password);
+            map.add("scope", "openid");
+        } else if (grantType.equals(REFRESH_TOKEN_GRANT)) {
+            map.add(REFRESH_TOKEN_GRANT, password);
+        }
+
+        return map;
+    }
+
     private TokenResponse getTokenFromKeycloak (String username, String password) throws KeycloakException {
         RestTemplate restTemplate = new RestTemplate();
         String tokenUrl = getTokenUrlFromKeycloak();
@@ -53,13 +78,8 @@ public class TokenProvider {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
-        MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
-        map.add("grant_type", "password");
-        map.add("client_id", clientId);
-        map.add("username", username);
-        map.add("password", password);
-        map.add("client_secret", clientSecret);
-        map.add("scope", "openid");
+        MultiValueMap<String, String> map = createTokenRequestMap(PASSWORD_GRANT, username, password);
+
 
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(map, headers);
@@ -74,13 +94,28 @@ public class TokenProvider {
             );
             return response.getBody();
         } catch (org.springframework.web.client.HttpClientErrorException e) {
-            throw new KeycloakException("Failed to obtain Keycloak token. Status: " + e.getStatusCode()
-                    + ", Response: " + e.getResponseBodyAsString(), e);
-        }catch (Exception e) {
-            throw new KeycloakException("Failed to connect to Keycloak server: " + e.getMessage(), e);
+            handleKeycloakError(e);
+            return null;
         }
 
 
+    }
+
+    private void handleKeycloakError(HttpClientErrorException e) throws KeycloakException {
+        if (e.getStatusCode() == HttpStatus.UNAUTHORIZED) {
+            String errorCode = e.getStatusCode().toString();
+            String errorDescription = "Invalid user credentials";
+            throw new KeycloakException(errorDescription, errorCode, e);
+        }
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode errorResponse = mapper.readTree(e.getResponseBodyAsString());
+            String errorCode = errorResponse.get("error").asText();
+            String errorDescription = errorResponse.get("error_description").asText();
+            throw new KeycloakException(errorDescription, errorCode, e);
+        } catch (IOException ex) {
+            throw new KeycloakException("Failed to parse error response from Keycloak", e);
+        }
     }
 
     public String getAccessToken() throws KeycloakException {
@@ -159,12 +194,7 @@ public class TokenProvider {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
-        MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
-        map.add("grant_type", "refresh_token");
-        map.add("client_id", clientId);
-        map.add("client_secret", clientSecret);
-        map.add("refresh_token", refreshToken);
-
+        MultiValueMap<String, String> map = createTokenRequestMap(REFRESH_TOKEN_GRANT, null, refreshToken);
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(map, headers);
 
         try {
