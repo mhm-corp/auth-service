@@ -21,8 +21,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.KafkaException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -95,18 +93,7 @@ public class AuthController {
             @ApiResponse(responseCode = "401", description = "Unauthorized or token expired"),
             @ApiResponse(responseCode = "404", description = "User not found")
     })
-    public ResponseEntity<UserData> getUserInformation(
-            @CookieValue(value = "accessToken", required = false) String accessToken)  {
-        if (accessToken == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
-        if (!keycloakService.validateToken(accessToken)) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
+    public ResponseEntity<UserData> getUserInformation(String username){
         UserData userInfo = authService.getUserInformation(username);
         return userInfo != null ? ResponseEntity.ok(userInfo) : ResponseEntity.notFound().build();
     }
