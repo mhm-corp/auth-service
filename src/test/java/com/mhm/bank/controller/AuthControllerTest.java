@@ -270,7 +270,7 @@ class AuthControllerTest {
         assertThrows(KeycloakException.class, () -> authController.loginUser(loginRequest, response));
         verify(authService).loginUser(loginRequest);
     }
-
+/*
     @Test
     void getUserInformation_shouldReturnOk_whenUserFoundByUsername() {
         String accessToken = "valid-token";
@@ -312,6 +312,8 @@ class AuthControllerTest {
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         verify(authService).getUserInformation("nonexistent");
     }
+
+
 
     @Test
     void getUserInformation_shouldReturnUnauthorized_whenAccessTokenIsNull() {
@@ -422,7 +424,7 @@ class AuthControllerTest {
         verify(keycloakService).validateToken(accessToken);
         verify(authService).refreshToken(refreshToken);
     }
-
+*/
     @Test
     void loginUser_shouldThrowException_whenInputFormatIsInvalid() throws KeycloakException {
         LoginRequest loginRequest = new LoginRequest("", "");

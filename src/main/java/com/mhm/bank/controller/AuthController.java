@@ -1,9 +1,6 @@
 package com.mhm.bank.controller;
 
-import com.mhm.bank.controller.dto.LoginRequest;
-import com.mhm.bank.controller.dto.TokensUser;
-import com.mhm.bank.controller.dto.UserData;
-import com.mhm.bank.controller.dto.UserInformation;
+import com.mhm.bank.controller.dto.*;
 import com.mhm.bank.exception.KeycloakException;
 import com.mhm.bank.exception.UserAlreadyExistsException;
 import com.mhm.bank.service.AuthService;
@@ -105,14 +102,10 @@ public class AuthController {
             @ApiResponse(responseCode = "401", description = "Invalid refresh token"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<Void> refreshTokenResponse(
-            @CookieValue(value = "accessToken", required = false) String accessToken,
-            @CookieValue(value = "refreshToken", required = false) String refreshToken,
-            HttpServletResponse response) throws KeycloakException {
-
-        if (refreshToken == null || accessToken == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
+    public ResponseEntity<Void> refreshTokenResponse(@RequestBody TokenRefreshRequest tokenRequest,
+                                                     HttpServletResponse response) throws KeycloakException {
+        String accessToken = tokenRequest.accessToken();
+        String refreshToken = tokenRequest.refreshToken();
 
         if (keycloakService.validateToken(accessToken)) {
             logger.debug("Current token is still valid, no need to refresh");
