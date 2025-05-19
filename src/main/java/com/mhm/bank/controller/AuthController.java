@@ -54,9 +54,9 @@ public class AuthController {
     @Operation(summary = "Register a new user")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "User registered successfully"),
-            @ApiResponse(responseCode = "400", description = "Bad request"),
-            @ApiResponse(responseCode = "409", description = "User already exists"),
-            @ApiResponse(responseCode = "500", description = "Internal server error")
+            @ApiResponse(responseCode = "400", description = "Invalid input data"),
+            @ApiResponse(responseCode = "409", description = "User already exists (ID, username or email)"),
+            @ApiResponse(responseCode = "500", description = "Internal server error (Keycloak or Kafka errors)")
     })
     public ResponseEntity<String> registerUser(@Valid @RequestBody UserInformation userInformation)
             throws UserAlreadyExistsException, KeycloakException, KafkaException {
@@ -68,10 +68,10 @@ public class AuthController {
     @PostMapping("/login")
     @Operation(summary = "Login a user")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Login successful"),
+            @ApiResponse(responseCode = "200", description = "Login successful, tokens set in cookies"),
+            @ApiResponse(responseCode = "400", description = "Invalid login request format"),
             @ApiResponse(responseCode = "401", description = "Invalid credentials"),
-            @ApiResponse(responseCode = "400", description = "Bad request"),
-            @ApiResponse(responseCode = "500", description = "Internal server error")
+            @ApiResponse(responseCode = "500", description = "Internal server error (Keycloak errors)")
     })
     public ResponseEntity<Void> loginUser (@Valid @RequestBody LoginRequest loginRequest, HttpServletResponse response) throws KeycloakException {
         TokensUser tokensUser = authService.loginUser(loginRequest);
@@ -87,6 +87,7 @@ public class AuthController {
     @Operation(summary = "Get the logged-in user's information by username or email")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "User information retrieved successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid username/email format"),
             @ApiResponse(responseCode = "401", description = "Unauthorized or token expired"),
             @ApiResponse(responseCode = "404", description = "User not found")
     })
@@ -99,8 +100,9 @@ public class AuthController {
     @Operation(summary = "Use the refresh token when the token has expired")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Token refreshed successfully"),
-            @ApiResponse(responseCode = "401", description = "Invalid refresh token"),
-            @ApiResponse(responseCode = "500", description = "Internal server error")
+            @ApiResponse(responseCode = "400", description = "Invalid token format"),
+            @ApiResponse(responseCode = "401", description = "Invalid or expired refresh token"),
+            @ApiResponse(responseCode = "500", description = "Internal server error (Keycloak errors)")
     })
     public ResponseEntity<Void> refreshTokenResponse(@RequestBody TokenRefreshRequest tokenRequest,
                                                      HttpServletResponse response) throws KeycloakException {
