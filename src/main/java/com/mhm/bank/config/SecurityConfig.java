@@ -22,11 +22,14 @@ public class SecurityConfig {
 
     public SecurityConfig(IKeycloakService keycloakService) {
         this.keycloakService = keycloakService;
+        logger.info("Initializing SecurityConfig with KeycloakService");
     }
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        return http
+        logger.debug("Configuring SecurityFilterChain");
+        try {
+            SecurityFilterChain filterChain = http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(request -> request
                         .requestMatchers("/swagger-ui/**").permitAll()
@@ -35,6 +38,12 @@ public class SecurityConfig {
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .build();
+            logger.info("SecurityFilterChain configured successfully");
+            return filterChain;
+        } catch (Exception e) {
+            logger.error("Failed to configure SecurityFilterChain: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
 

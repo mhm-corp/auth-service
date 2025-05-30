@@ -1,30 +1,43 @@
 # First stage: Build
 FROM eclipse-temurin:17-jdk-alpine AS builder
 
-# Set the working directory
 WORKDIR /app
 
-# Copy the necessary files for the build
-COPY build.gradle gradlew ./
+# Copy gradle files
+COPY gradlew build.gradle settings.gradle ./
 COPY gradle ./gradle
 
-# Copy the rest of the source code
+# Download dependencies
+RUN ./gradlew dependencies --no-daemon
+
+# Copy source code
 COPY src ./src
 
-# Run Gradle to build the project without running tests
-RUN ./gradlew build --no-daemon -x test
+# Build the application
+RUN ./gradlew bootJar --no-daemon -x test
 
-# Second stage: Create the final image
-FROM eclipse-temurin:17-jdk-alpine
+# Second stage: Runtime
+FROM eclipse-temurin:17-jre-alpine
 
-# Set the working directory
 WORKDIR /app
 
-# Copy the built artifact from the previous stage
-COPY --from=builder /app/build/libs/*.jar app.jar
+# Add non-root user
+RUN addgroup -S spring && adduser -S spring -G spring
 
-# Entry point command to run the application
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+# Copy the specific jar from builder stage
+COPY --from=builder /app/build/libs/auth-service.jar auth-service.jar
 
-# Expose the port where the application runs
+# Change ownership
+RUN chown spring:spring auth-service.jar
+
+USER spring
+
+# Set active profile
+ENV SPRING_PROFILES_ACTIVE=docker
+
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD wget -q --spider http://localhost:8081/actuator/health || exit 1
+
 EXPOSE 8081
+
+ENTRYPOINT ["java", "-jar", "/app/auth-service.jar"]

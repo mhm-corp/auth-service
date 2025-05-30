@@ -41,6 +41,7 @@ public class AuthController {
     }
 
     private void putInCookie (String nameCookie, String accessToken, HttpServletResponse response) {
+        logger.debug("Setting cookie: {}", nameCookie);
         Cookie cookie = new Cookie(nameCookie, accessToken);
         cookie.setHttpOnly(true);
         cookie.setSecure(cookieSecure);
@@ -48,6 +49,7 @@ public class AuthController {
         cookie.setMaxAge(cookieMaxExpirationTimeSeconds);
 
         response.addCookie(cookie);
+        logger.debug("Cookie {} set successfully", nameCookie);
     }
 
     @PostMapping("/register")
@@ -60,9 +62,15 @@ public class AuthController {
     })
     public ResponseEntity<String> registerUser(@Valid @RequestBody UserInformation userInformation)
             throws UserAlreadyExistsException, KeycloakException, KafkaException {
-
-        String result = authService.registerUser(userInformation);
-        return ResponseEntity.status(HttpStatus.CREATED).body(result);
+        logger.info("Received registration request for user: {}", userInformation.username());
+        try {
+            String result = authService.registerUser(userInformation);
+            logger.info("Successfully registered user: {}", userInformation.username());
+            return ResponseEntity.status(HttpStatus.CREATED).body(result);
+        } catch (Exception e) {
+            logger.error("Failed to register user: {}. Error: {}", userInformation.username(), e.getMessage());
+            throw e;
+        }
     }
 
     @PostMapping("/login")
@@ -74,13 +82,23 @@ public class AuthController {
             @ApiResponse(responseCode = "500", description = "Internal server error (Keycloak errors)")
     })
     public ResponseEntity<Void> loginUser (@Valid @RequestBody LoginRequest loginRequest, HttpServletResponse response) throws KeycloakException {
-        TokensUser tokensUser = authService.loginUser(loginRequest);
+        logger.info("Received login request for user: {}", loginRequest.username());
+        try {
+            TokensUser tokensUser = authService.loginUser(loginRequest);
 
-        if (tokensUser == null)  return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            if (tokensUser == null)  {
+                logger.warn("Login failed for user: {}", loginRequest.username());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
 
-        putInCookie(NAME_TOKEN_IN_COOKIE, tokensUser.getAccessToken(), response);
-        putInCookie(NAME_REFRESH_TOKEN_IN_COOKIE, tokensUser.getRefreshToken(), response);
-        return ResponseEntity.status(HttpStatus.OK).build();
+            putInCookie(NAME_TOKEN_IN_COOKIE, tokensUser.getAccessToken(), response);
+            putInCookie(NAME_REFRESH_TOKEN_IN_COOKIE, tokensUser.getRefreshToken(), response);
+            logger.info("Login successful for user: {}", loginRequest.username());
+            return ResponseEntity.status(HttpStatus.OK).build();
+        } catch (Exception e) {
+            logger.error("Login error for user: {}. Error: {}", loginRequest.username(), e.getMessage());
+            throw e;
+        }
     }
 
     @GetMapping("/me")
@@ -92,8 +110,20 @@ public class AuthController {
             @ApiResponse(responseCode = "404", description = "User not found")
     })
     public ResponseEntity<UserData> getUserInformation(String username){
-        UserData userInfo = authService.getUserInformation(username);
-        return userInfo != null ? ResponseEntity.ok(userInfo) : ResponseEntity.notFound().build();
+        logger.info("Retrieving user information for: {}", username);
+        try {
+            UserData userInfo = authService.getUserInformation(username);
+            if (userInfo != null) {
+                logger.info("Successfully retrieved information for user: {}", username);
+                return ResponseEntity.ok(userInfo);
+            }
+            logger.warn("User not found: {}", username);
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("Error retrieving user information for: {}. Error: {}", username, e.getMessage());
+            throw e;
+        }
+
     }
 
     @PostMapping("/refresh")
@@ -106,22 +136,30 @@ public class AuthController {
     })
     public ResponseEntity<Void> refreshTokenResponse(@RequestBody TokenRefreshRequest tokenRequest,
                                                      HttpServletResponse response) throws KeycloakException {
-        String accessToken = tokenRequest.accessToken();
-        String refreshToken = tokenRequest.refreshToken();
+        logger.info("Received token refresh request");
+        try {
+            String accessToken = tokenRequest.accessToken();
+            String refreshToken = tokenRequest.refreshToken();
 
-        if (keycloakService.validateToken(accessToken)) {
-            logger.debug("Current token is still valid, no need to refresh");
-            return null;
+            if (keycloakService.validateToken(accessToken)) {
+                logger.debug("Current token is still valid, no need to refresh");
+                return null;
+            }
+
+            TokensUser newTokens = authService.refreshToken(refreshToken);
+            if (newTokens == null) {
+                logger.warn("Token refresh failed - invalid refresh token");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            putInCookie(NAME_TOKEN_IN_COOKIE, newTokens.getAccessToken(), response);
+            logger.info("Token refresh successful");
+            return ResponseEntity.ok().build();
+
+        } catch (Exception e) {
+            logger.error("Token refresh failed. Error: {}", e.getMessage());
+            throw e;
         }
-
-        TokensUser newTokens = authService.refreshToken(refreshToken);
-        if (newTokens == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
-        putInCookie(NAME_TOKEN_IN_COOKIE, newTokens.getAccessToken(), response);
-
-        return ResponseEntity.ok().build();
     }
 
 }

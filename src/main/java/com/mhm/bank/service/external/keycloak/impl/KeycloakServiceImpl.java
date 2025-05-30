@@ -23,7 +23,7 @@ import java.util.List;
 
 @Service
 public class KeycloakServiceImpl implements IKeycloakService {
-    private static final Logger log = LoggerFactory.getLogger(KeycloakServiceImpl.class);
+    private static final Logger logger = LoggerFactory.getLogger(KeycloakServiceImpl.class);
     @Value("${keycloak.realm.role.user.default}")
     private String kcUserRole;
 
@@ -36,41 +36,46 @@ public class KeycloakServiceImpl implements IKeycloakService {
     public KeycloakServiceImpl(KeycloakProvider keycloakProvider, TokenProvider tokenProvider) {
         this.keycloakProvider = keycloakProvider;
         this.tokenProvider = tokenProvider;
+        logger.info("KeycloakServiceImpl initialized");
     }
 
     @Override
     public boolean createUser(UserKCDto userDto, String authToken) throws KeycloakException {
-        int status  = 0;
+        logger.info("Creating new user in Keycloak: {}", userDto.username());
         UsersResource usersResource = keycloakProvider.getUserResource();
 
         Response response = createNewUser(userDto, usersResource);
-        status = response.getStatus();
+        int status = response.getStatus();
+        logger.debug("User creation response status: {}", status);
 
         if (status == KC_USER_CREATED_SUCCESFUL){
             String path = response.getLocation().getPath();
             String userId = path.substring(path.lastIndexOf("/") + 1);
+            logger.debug("User created with ID: {}", userId);
+
             setPasswordUser(userDto, usersResource, userId);
+            logger.debug("Password set for user: {}", userDto.username());
 
             assignRoleToUser(userDto, userId);
+            logger.info("User {} successfully created with roles", userDto.username());
             return true;
 
         } else if (status == KC_ERROR_USER_EXISTED) {
-            log.error("User {} already exists", userDto.username());
-            throw new KeycloakException("User {"+userDto.username()+"} already exists.");
-
+            logger.error("User already exists: {}", userDto.username());
+            throw new KeycloakException("User already exists: " + userDto.username());
         } else {
-            log.error("Error creating user {}", userDto.username());
-            throw new KeycloakException("Error creating user {"+userDto.username()+"}");
-
+            logger.error("Failed to create user: {} with status: {}", userDto.username(), status);
+            throw new KeycloakException("Failed to create user: " + userDto.username());
         }
     }
 
     private void assignRoleToUser(UserKCDto userDto, String userId) {
-
+        logger.debug("Assigning roles to user: {}", userDto.username());
         RealmResource realmResource = keycloakProvider.getRealmResouce();
         List<RoleRepresentation> roleRepresentations = null;
 
         if (userDto.roles() == null || userDto.roles().isEmpty()) {
+            logger.debug("No roles specified, assigning default role: {}", kcUserRole);
             roleRepresentations = List.of(realmResource.roles().get(kcUserRole).toRepresentation());
         } else {
            validateRolesExistKeycloak(realmResource, userDto);
@@ -84,7 +89,7 @@ public class KeycloakServiceImpl implements IKeycloakService {
                     .toList();
 
             if (roleRepresentations.isEmpty()) {
-                log.warn("No valid roles found. Assigning default role.");
+                logger.warn("No valid roles found for user {}, assigning default role", userDto.username());
                 roleRepresentations = List.of(realmResource.roles().get(kcUserRole).toRepresentation());
             }
         }
@@ -93,10 +98,11 @@ public class KeycloakServiceImpl implements IKeycloakService {
                 .roles()
                 .realmLevel()
                 .add(roleRepresentations);
-
+        logger.info("Roles assigned successfully to user: {}", userDto.username());
     }
 
     private void validateRolesExistKeycloak (RealmResource realmResource, UserKCDto userDto){
+        logger.debug("Validating roles for user: {}", userDto.username());
         List<String> availableRoles = realmResource.roles()
                 .list()
                 .stream()
@@ -108,21 +114,23 @@ public class KeycloakServiceImpl implements IKeycloakService {
                 .toList();
 
         if (!nonExistentRoles.isEmpty()) {
-            log.warn("The following roles don't exist in Keycloak: {}", nonExistentRoles);
+            logger.warn("Non-existent roles requested for user {}: {}", userDto.username(), nonExistentRoles);
         }
     }
 
     private void setPasswordUser(UserKCDto userDto, UsersResource usersResource, String userId) {
+        logger.debug("Setting password for user: {}", userDto.username());
         CredentialRepresentation credentialRepresentation = new CredentialRepresentation();
         credentialRepresentation.setTemporary(false);
         credentialRepresentation.setType(OAuth2Constants.PASSWORD);
         credentialRepresentation.setValue(userDto.password());
 
         usersResource.get(userId).resetPassword(credentialRepresentation);
-
+        logger.debug("Password set successfully for user: {}", userDto.username());
     }
 
     private Response createNewUser(UserKCDto userDto,  UsersResource usersResource){
+        logger.debug("Creating user representation for: {}", userDto.username());
         UserRepresentation userRepresentation = new UserRepresentation();
         userRepresentation.setUsername(userDto.username());
         userRepresentation.setFirstName(userDto.firstName());
@@ -136,6 +144,7 @@ public class KeycloakServiceImpl implements IKeycloakService {
 
     @Override
     public void deleteUser(String usernameAfterKC) throws KeycloakException {
+        logger.debug("Deleting user {}", usernameAfterKC);
         try {
             UsersResource usersResource = keycloakProvider.getUserResource();
             List<UserRepresentation> users = usersResource.searchByUsername(usernameAfterKC, true);
@@ -143,34 +152,61 @@ public class KeycloakServiceImpl implements IKeycloakService {
             if (!users.isEmpty()) {
                 String userId = users.get(0).getId();
                 usersResource.get(userId).remove();
-                log.info("User {} successfully deleted from Keycloak", usernameAfterKC);
+                logger.info("User {} successfully deleted from Keycloak", usernameAfterKC);
             } else {
-                log.warn("User {} not found in Keycloak", usernameAfterKC);
+                logger.warn("User {} not found in Keycloak", usernameAfterKC);
             }
         } catch (Exception e) {
-            log.error("Error deleting user {} from Keycloak: {}", usernameAfterKC, e.getMessage());
+            logger.error("Error deleting user {} from Keycloak: {}", usernameAfterKC, e.getMessage());
             throw new KeycloakException("Error deleting user from Keycloak: " + e.getMessage());
         }
     }
 
     @Override
     public TokensUser loginUser(LoginRequest loginRequest, String token) throws KeycloakException {
-         return tokenProvider.getUserAccessToken(loginRequest.username(), loginRequest.password());
+        logger.info("Processing login request for user: {}", loginRequest.username());
+        try {
+            TokensUser tokens = tokenProvider.getUserAccessToken(loginRequest.username(), loginRequest.password());
+            logger.info("Login successful for user: {}", loginRequest.username());
+            return tokens;
+        } catch (Exception e) {
+            logger.error("Login failed for user: {}. Error: {}", loginRequest.username(), e.getMessage());
+            throw e;
+        }
     }
 
     @Override
     public String getTokenAdminAppAuth () throws KeycloakException {
-        return tokenProvider.getTokenAdminAppAuth();
+        logger.debug("Requesting admin app authentication token");
+        try {
+            String token = tokenProvider.getTokenAdminAppAuth();
+            logger.debug("Admin app token obtained successfully");
+            return token;
+        } catch (Exception e) {
+            logger.error("Failed to get admin app token: {}", e.getMessage());
+            throw e;
+        }
     }
 
     @Override
     public TokensUser getNewToken(String refreshToken) {
-         return tokenProvider.getNewToken(refreshToken);
+        logger.debug("Requesting new token using refresh token");
+        try {
+            TokensUser tokens = tokenProvider.getNewToken(refreshToken);
+            logger.debug("Token refresh successful");
+            return tokens;
+        } catch (Exception e) {
+            logger.error("Token refresh failed: {}", e.getMessage());
+            return null;
+        }
     }
 
     @Override
     public boolean validateToken(String token) {
-        return tokenProvider.validateToken(token);
+        logger.debug("Validating token");
+        boolean isValid = tokenProvider.validateToken(token);
+        logger.debug("Token validation result: {}", isValid);
+        return isValid;
     }
 
 }
