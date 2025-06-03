@@ -51,20 +51,25 @@ public class TokenProvider {
     private String issuer;
 
     private String getTokenUrlFromKeycloak (){
-        return serverUrl + "/realms/" + realm + "/protocol/openid-connect/token";
+        String tokenUrl = serverUrl + "/realms/" + realm + "/protocol/openid-connect/token";
+        logger.debug("Generated Keycloak token URL: {}", tokenUrl);
+        return tokenUrl;
     }
 
     private MultiValueMap<String, String> createTokenRequestMap(String grantType, String username, String password) {
+        logger.debug("Creating token request map with grant type: {}", grantType);
         MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
         map.add("grant_type", grantType);
         map.add("client_id", clientId);
         map.add("client_secret", clientSecret);
 
         if (grantType.equals(PASSWORD_GRANT)) {
+            logger.debug("Adding password grant parameters for user: {}", username);
             map.add("username", username);
             map.add(PASSWORD_GRANT, password);
             map.add("scope", "openid");
         } else if (grantType.equals(REFRESH_TOKEN_GRANT)) {
+            logger.debug("Adding refresh token parameters");
             map.add(REFRESH_TOKEN_GRANT, password);
         }
 
@@ -72,6 +77,7 @@ public class TokenProvider {
     }
 
     private TokenResponse getTokenFromKeycloak (String username, String password) throws KeycloakException {
+        logger.info("Requesting token from Keycloak for user: {}", username);
         RestTemplate restTemplate = new RestTemplate();
         String tokenUrl = getTokenUrlFromKeycloak();
 
@@ -92,8 +98,10 @@ public class TokenProvider {
                     request,
                     TokenResponse.class
             );
+            logger.info("Successfully obtained token for user: {}", username);
             return response.getBody();
         } catch (org.springframework.web.client.HttpClientErrorException e) {
+            logger.error("Failed to obtain token for user: {}. Status: {}", username, e.getStatusCode());
             handleKeycloakError(e);
             return null;
         }
@@ -102,9 +110,11 @@ public class TokenProvider {
     }
 
     private void handleKeycloakError(HttpClientErrorException e) throws KeycloakException {
+        logger.error("Keycloak error occurred: {}", e.getStatusCode());
         if (e.getStatusCode() == HttpStatus.UNAUTHORIZED) {
             String errorCode = e.getStatusCode().toString();
             String errorDescription = "Invalid user credentials";
+            logger.warn("Invalid user credentials");
             throw new KeycloakException(errorDescription, errorCode, e);
         }
         try {
@@ -112,29 +122,37 @@ public class TokenProvider {
             JsonNode errorResponse = mapper.readTree(e.getResponseBodyAsString());
             String errorCode = errorResponse.get("error").asText();
             String errorDescription = errorResponse.get("error_description").asText();
+            logger.error("Keycloak error: {} - {}", errorCode, errorDescription);
             throw new KeycloakException(errorDescription, errorCode, e);
         } catch (IOException ex) {
+            logger.error("Failed to parse Keycloak error response", ex);
             throw new KeycloakException("Failed to parse error response from Keycloak", e);
         }
     }
 
     public String getAccessToken() throws KeycloakException {
+        logger.debug("Requesting admin app access token");
         TokenResponse body =getTokenFromKeycloak(adminAppName, adminAppPassword);
         if (body == null) {
+            logger.error("No token response received from Keycloak");
             throw new KeycloakException("No token response body received from Keycloak");
         }
+        logger.info("Successfully obtained admin app access token");
         return body.getAccessToken();
     }
 
     public TokensUser getUserAccessToken(String username, String password) throws KeycloakException {
+        logger.debug("Requesting user access token for: {}", username);
         TokenResponse body = getTokenFromKeycloak(username, password);
         TokensUser tokensUser = new TokensUser();
 
         if (body != null) {
+            logger.info("Successfully obtained tokens for user: {}", username);
             tokensUser.setAccessToken(body.getAccessToken());
             tokensUser.setRefreshToken(body.getRefreshToken());
             tokensUser.setExpiresIn(body.getExpiresIn());
         } else {
+            logger.error("No token response received for user: {}", username);
             throw new KeycloakException("No token response body received from Keycloak");
         }
 
@@ -142,14 +160,18 @@ public class TokenProvider {
     }
 
     public String getTokenAdminAppAuth() throws KeycloakException {
+        logger.debug("Requesting admin app authentication token");
         String token = getAccessToken();
         if (token == null) {
+            logger.error("Failed to obtain admin app authentication token");
             throw new KeycloakException("Failed to obtain Keycloak token");
         }
+        logger.info("Successfully obtained admin app authentication token");
         return token;
     }
 
     public boolean validateToken(String token) {
+        logger.debug("Validating token");
         try {
             SignedJWT signedJWT = SignedJWT.parse(token);
 
@@ -170,16 +192,21 @@ public class TokenProvider {
             boolean signatureValid = signedJWT.verify(verifier);
 
             if (!signatureValid) {
+                logger.warn("Token signature verification failed");
                 return false;
             }
 
             JWTClaimsSet claims = signedJWT.getJWTClaimsSet();
 
             if (!claims.getIssuer().equals(issuer)) {
+                logger.warn("Token issuer verification failed");
                 return false;
             }
 
-            return !(claims.getExpirationTime() == null || claims.getExpirationTime().before(new java.util.Date()));
+            boolean isValid = !(claims.getExpirationTime() == null ||
+                    claims.getExpirationTime().before(new java.util.Date()));
+            logger.info("Token validation result: {}", isValid);
+            return isValid;
 
         } catch (Exception e) {
             logger.error("Error validating token: ",e);
@@ -188,6 +215,7 @@ public class TokenProvider {
     }
 
     public TokensUser getNewToken (String refreshToken){
+        logger.debug("Requesting new token using refresh token");
         RestTemplate restTemplate = new RestTemplate();
         String tokenUrl = getTokenUrlFromKeycloak();
 
@@ -207,11 +235,13 @@ public class TokenProvider {
 
             TokenResponse body = response.getBody();
             if (body != null) {
+                logger.info("Successfully refreshed token");
                 TokensUser tokensUser = new TokensUser();
                 tokensUser.setAccessToken(body.getAccessToken());
                 tokensUser.setRefreshToken(body.getRefreshToken());
                 return tokensUser;
             }
+            logger.warn("No response body received when refreshing token");
             return null;
         } catch (Exception e) {
             logger.error("Error refreshing token: ", e);
